@@ -1,0 +1,2 @@
+# For slice_rocks.py (sprite sheet slicing)
+Pillow>=10.0.0

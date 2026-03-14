@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>4-Room Top-Down Game</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <!-- Bump ?v= when you deploy or want to force reload (cache-busting) -->
+  <link rel="stylesheet" href="style.css?v=2" />
+</head>
+<body>
+  <div class="weapon-strip" aria-label="Weapons and inventory">
+    <div id="strip-slots" class="strip-slots"></div>
+  </div>
+  <div class="hud">
+    <div class="hud-left">
+      <div id="player-hearts" class="player-hearts" aria-label="Health"></div>
+      <div id="player-coins" class="player-coins" aria-label="Coins"></div>
+    </div>
+    <div class="hud-center">
+      <span id="enemies-label">Enemies left:</span>
+      <span id="enemies-value">0</span>
+    </div>
+    <div class="hud-right controls-hint" aria-label="Controls">
+      <span>WASD / Arrows — move</span>
+      <span>Spacebar — attack / use</span>
+      <span>R — cycle thru inventory</span>
+    </div>
+  </div>
+
+  <canvas id="gameCanvas" width="800" height="600"></canvas>
+
+  <div id="message-overlay" class="overlay hidden">
+    <div id="message-text"></div>
+    <button id="restart-button">Restart</button>
+    <div id="start-hint" class="start-hint"></div>
+  </div>
+
+  <audio id="game-music" loop preload="auto">
+    <source src="big_reggie-zelda-style-343928.mp3" type="audio/mpeg">
+  </audio>
+  <audio id="sword-swing" preload="auto">
+    <source src="floraphonic-swing-whoosh-5-198498.mp3" type="audio/mpeg">
+  </audio>
+  <audio id="fireball-whoosh" preload="auto">
+    <source src="floraphonic-fireball-whoosh-1-179125.mp3" type="audio/mpeg">
+  </audio>
+  <audio id="coin-collect" preload="auto">
+    <source src="driken5482-retro-coin-4-236671.mp3" type="audio/mpeg">
+  </audio>
+  <audio id="item-equip" preload="auto">
+    <source src="freesound_community-item-equip-6904.mp3" type="audio/mpeg">
+  </audio>
+  <audio id="heart-pickup" preload="auto">
+    <source src="existentialtaco-confirm-tap-394001.mp3" type="audio/mpeg">
+  </audio>
+  <audio id="boss-chamber" preload="auto">
+    <source src="litesaturation-short-rock-488463.mp3" type="audio/mpeg">
+  </audio>
+  <audio id="secret-door-open" preload="auto">
+    <source src="freesounds123-walking-on-wood-363349.mp3" type="audio/mpeg">
+  </audio>
+  <audio id="trapdoor-open" preload="auto">
+    <source src="freesound_community-boulder-push-40549.mp3" type="audio/mpeg">
+  </audio>
+  <audio id="character-select-click" preload="auto">
+    <source src="amaze98-clicking-interface-select-201946.mp3" type="audio/mpeg">
+  </audio>
+  <script src="game.js?v=2"></script>
+</body>
+</html>
+
