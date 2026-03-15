@@ -4762,9 +4762,9 @@ function drawMinimap() {
 }
 
 function getCharacterSelectSprite(index) {
-  if (index === 0) return { img: rayanHeroImage, loaded: rayanHeroLoaded, fw: rayanHeroFrameWidth, fh: rayanHeroFrameHeight };
-  if (index === 1) return { img: ellinorHeroImage, loaded: ellinorHeroLoaded, fw: ellinorHeroFrameWidth, fh: ellinorHeroFrameHeight };
-  return { img: alanaHeroImage, loaded: alanaHeroLoaded, fw: alanaHeroFrameWidth, fh: alanaHeroFrameHeight };
+  if (index === 0) return { img: alanaHeroImage, loaded: alanaHeroLoaded, fw: alanaHeroFrameWidth, fh: alanaHeroFrameHeight };
+  if (index === 1) return { img: rayanHeroImage, loaded: rayanHeroLoaded, fw: rayanHeroFrameWidth, fh: rayanHeroFrameHeight };
+  return { img: ellinorHeroImage, loaded: ellinorHeroLoaded, fw: ellinorHeroFrameWidth, fh: ellinorHeroFrameHeight };
 }
 
 function characterSelectPanelAt(x, y) {
@@ -4794,10 +4794,10 @@ function drawCharacterSelectScreen() {
   ctx.fillRect(0, 0, cw, ch);
 
   ctx.fillStyle = "#2c2c38";
-  ctx.font = "bold 22px sans-serif";
+  ctx.font = "bold 36px sans-serif";
   ctx.textAlign = "center";
   ctx.textBaseline = "top";
-  ctx.fillText("Select your character", cw / 2, 28);
+  ctx.fillText("CHOOSE YOUR PLAYER", cw / 2, 24);
 
   const numOptions = CHARACTER_OPTIONS.length;
   const panelW = 180;
@@ -4849,10 +4849,10 @@ function drawCharacterSelectScreen() {
     }
 
     ctx.fillStyle = isSelected ? "#8b6914" : "#4a4a5a";
-    ctx.font = "bold 18px sans-serif";
+    ctx.font = "bold 20px sans-serif";
     ctx.textAlign = "center";
     ctx.textBaseline = "top";
-    ctx.fillText(CHARACTER_OPTIONS[i].name, cx, boxTop + panelH - 28);
+    ctx.fillText(CHARACTER_OPTIONS[i].name, cx, boxTop + avatarH + 8);
   }
 
   ctx.fillStyle = "#5a5a6a";
