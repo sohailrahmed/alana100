@@ -13,6 +13,7 @@ const messageTextEl = document.getElementById("message-text");
 const restartButton = document.getElementById("restart-button");
 const gameMusicEl = document.getElementById("game-music");
 const swordSwingEl = document.getElementById("sword-swing");
+const swordStabEl = document.getElementById("sword-stab");
 const fireballWhooshEl = document.getElementById("fireball-whoosh");
 const coinCollectEl = document.getElementById("coin-collect");
 const itemEquipEl = document.getElementById("item-equip");
@@ -20,17 +21,21 @@ const heartPickupEl = document.getElementById("heart-pickup");
 const bossChamberEl = document.getElementById("boss-chamber");
 const secretDoorOpenEl = document.getElementById("secret-door-open");
 const trapDoorOpenEl = document.getElementById("trapdoor-open");
+const caveDoorOpenEl = document.getElementById("cave-door-open");
 const characterSelectClickEl = document.getElementById("character-select-click");
+const purchaseDenyEl = document.getElementById("purchase-deny");
 const ROOM_WIDTH = 640;
 const ROOM_HEIGHT = 480;
 const MINIMAP_PANEL_WIDTH = 140;
 const ROOM_MARGIN_X = MINIMAP_PANEL_WIDTH + (canvas.width - MINIMAP_PANEL_WIDTH - ROOM_WIDTH) / 2;
 const ROOM_MARGIN_Y = (canvas.height - ROOM_HEIGHT) / 2;
 const ROOM_TRANSITION_SPEED = 0.018; // progress per frame; ~1.1 sec for full slide
+const CAPTION_MARGIN = 10; // keep caption bubbles inside playable area
 
 const PLAYER_SPEED = 2.4;
 const PLAYER_SIZE = 24;
-const PLAYER_MAX_HP = 10;
+const PLAYER_MAX_HP = 40;
+const PLAYER_START_HP = 10;
 // Bounds for room/obstacle collision (match visible sprite: 48px wide, ~72px tall)
 const PLAYER_BOUNDS_HALF_WIDTH = 24;
 const PLAYER_BOUNDS_HALF_HEIGHT = 36;
@@ -69,6 +74,7 @@ const SWORD_DAMAGE = 15;   // each sword hit (50% stronger than base)
 const SWORD_RANGE = PLAYER_SIZE * 3; // sword length (50% longer: 3× player size)
 const SWORD_ARC = Math.PI / 2;   // 180° total swing (±90° from facing)
 const SWORD_SWING_DURATION = 15; // frames for full swing animation (20% slower than before)
+const AXE_RANGE = SWORD_RANGE;   // axe same reach as sword; damage same (SWORD_DAMAGE)
 
 const WEAPON_FIREBALL = "fireball";
 const WEAPON_SWORD = "sword";
@@ -138,13 +144,13 @@ alanaHeroImage.onload = () => {
 // Which hero sheet to draw: 'hero' | 'rayan' | 'ellinor' | 'alana'
 let currentHeroSheet = "hero";
 
-// Character select at start: 0 = Rayan, 1 = Ellinor, 2 = Alana
+// Character select at start: 0 = Alana, 1 = Rayan, 2 = Ellinor
 let characterSelectActive = true;
 let selectedCharacterIndex = 0;
 const CHARACTER_OPTIONS = [
+  { id: "alana", name: "ALANA" },
   { id: "rayan", name: "RAYAN" },
   { id: "ellinor", name: "ELLINOR" },
-  { id: "alana", name: "ALANA" },
 ];
 
 const shopkeeperImage = new Image();
@@ -159,6 +165,26 @@ shopkeeperImage.onload = () => {
   shopkeeperFrameHeight = shopkeeperImage.height / SHOPKEEPER_SPRITE_ROWS;
   shopkeeperLoaded = true;
 };
+
+const secretRoomShieldImage = new Image();
+secretRoomShieldImage.src = "shield.png";
+let secretRoomShieldLoaded = false;
+secretRoomShieldImage.onload = () => { secretRoomShieldLoaded = true; };
+
+const shieldArmedImage = new Image();
+shieldArmedImage.src = "shield_armed.png";
+let shieldArmedLoaded = false;
+shieldArmedImage.onload = () => { shieldArmedLoaded = true; };
+
+const caveDoorImage = new Image();
+caveDoorImage.src = "cave_door.png";
+let caveDoorLoaded = false;
+caveDoorImage.onload = () => { caveDoorLoaded = true; };
+
+const caveImage = new Image();
+caveImage.src = "cave.png";
+let caveLoaded = false;
+caveImage.onload = () => { caveLoaded = true; };
 
 // Goblin enemy sprite sheet (4 cols × 4 rows):
 // Row 0: walking towards player (down), Row 1: away (up), Row 2: left, Row 3: right
@@ -295,7 +321,7 @@ const SHOPKEEPER_CAPTION_PHRASES = [
   "What did I miss?",
   "Can I help you with anything?",
   "Feel free to look.",
-  "Now tell me about gun laws in NJ.",
+  "Would you be interested in selling me gold for half the market price?",
 ];
 const SHOPKEEPER_NO_WEAPON_PHRASES = [
   "There's no need for that.",
@@ -309,14 +335,266 @@ let gameFrameCount = 0;
 const SHOPKEEPER_CAPTION_INTERVAL = 300;
 const SHOPKEEPER_CAPTION_DURATION = 180;
 
+// Salesman (Vlad) in room 8 — same 4×4 sprite layout as shopkeeper
+const SALESMAN_ROOM = 8;
+const salesmanImage = new Image();
+salesmanImage.src = "vlad_sprite.png";
+let salesmanLoaded = false;
+const SALESMAN_SPRITE_COLS = 4;
+const SALESMAN_SPRITE_ROWS = 4;
+let salesmanFrameWidth = 0;
+let salesmanFrameHeight = 0;
+salesmanImage.onload = () => {
+  salesmanFrameWidth = salesmanImage.width / SALESMAN_SPRITE_COLS;
+  salesmanFrameHeight = salesmanImage.height / SALESMAN_SPRITE_ROWS;
+  salesmanLoaded = true;
+};
+
+const SALESMAN_SPEED = 1.2;
+const SALESMAN_SIZE = 48;
+const SALESMAN_WAYPOINT_R = 18;
+const SALESMAN_SQUARE = [
+  { x: ROOM_MARGIN_X + 100, y: ROOM_MARGIN_Y + 90 },
+  { x: ROOM_MARGIN_X + ROOM_WIDTH - 100, y: ROOM_MARGIN_Y + 90 },
+  { x: ROOM_MARGIN_X + ROOM_WIDTH - 100, y: ROOM_MARGIN_Y + ROOM_HEIGHT - 90 },
+  { x: ROOM_MARGIN_X + 100, y: ROOM_MARGIN_Y + ROOM_HEIGHT - 90 },
+];
+const SALESMAN_REST = {
+  x: ROOM_MARGIN_X + ROOM_WIDTH / 2,
+  y: ROOM_MARGIN_Y + ROOM_HEIGHT * 0.65,
+};
+const SALESMAN_ROOM_MARGIN = 40; // keep salesman inside room (walls only; no table)
+let salesman = {
+  x: ROOM_MARGIN_X + 100,
+  y: ROOM_MARGIN_Y + 90,
+  state: "square",
+  waypointIndex: 0,
+  facingAngle: 0,
+  walkFrameIndex: 0,
+  walkFrameCounter: 0,
+};
+
+const SALESMAN_CAPTION_PHRASES = [
+  "What did I miss?",
+  "Can I help you with anything?",
+  "Feel free to look.",
+  "Would you be interested in selling me gold for half the market price?",
+];
+const SALESMAN_NO_WEAPON_PHRASES = [
+  "There's no need for that.",
+  "Stop or the handcuffs come out.",
+];
+let salesmanCaptionText = "";
+let salesmanCaptionUntil = 0;
+let salesmanCaptionIndex = 0;
+let salesmanCaptionNextAt = 0;
+
+// Room 8: vertical brown table on the right with 3 items
+const ROOM8_TABLE_X = ROOM_MARGIN_X + ROOM_WIDTH - 150;
+const ROOM8_TABLE_W = 52;
+const ROOM8_TABLE_TOP = ROOM_MARGIN_Y + 80;
+const ROOM8_TABLE_H = ROOM_HEIGHT - 160;
+const ROOM8_TABLE_ITEM_SPACING = 150;
+const ROOM8_TABLE_ITEMS = [
+  { id: "axe", name: "Axe", price: 5, offsetY: -ROOM8_TABLE_ITEM_SPACING },
+  { id: "endlessWar", name: "Endless War", price: 50000000000, offsetY: 0 },
+  { id: "worldPeace", name: "World Peace", price: 1, offsetY: ROOM8_TABLE_ITEM_SPACING },
+];
+const ROOM8_TABLE_ITEM_R = 36;
+let room8TableSold = { axe: false, endlessWar: false, worldPeace: false };
+let room8FirstWarSold = false;
+let room8WarRestocked = false;
+let hasLeftRoom8AfterWar = false;
+let room8WarRestockHighlightIndex = 0;
+let wasInRestockedWarRangeLastFrame = false;
+const ROOM8_WAR_RESTOCK_CAPTIONS = [
+  "We have more War available in inventory. But thanks to inflation it now costs 80 Billion coin.",
+  "Who needs social security?",
+];
+let room8PurchaseCaption = "";
+let room8PurchaseCaptionUntil = 0;
+let previousPlayerRoom = 9;
+let room8EndlessWarHighlightIndex = 0;
+let wasInEndlessWarRangeLastFrame = false;
+const ROOM8_ENDLESS_WAR_HIGHLIGHT_CAPTIONS = [
+  "Ah yes, my premium item. Just add funding and stir continuously for several years.",
+  "You sure you don't want two? History suggests one is rarely enough.",
+];
+
+const ROOM8_DEFAULT_CAPTION = "Welcome, hero! Looking for a weapon… or perhaps a small geopolitical investment?";
+const ROOM8_CAPTION_DURATION = 240;
+
+const room8AxeItemImage = new Image();
+room8AxeItemImage.src = "axe_item.png";
+let room8AxeItemLoaded = false;
+room8AxeItemImage.onload = () => { room8AxeItemLoaded = true; };
+
+const room8EndlessWarItemImage = new Image();
+room8EndlessWarItemImage.src = "endless_war_item.png";
+let room8EndlessWarItemLoaded = false;
+room8EndlessWarItemImage.onload = () => { room8EndlessWarItemLoaded = true; };
+
+const room8WorldPeaceItemImage = new Image();
+room8WorldPeaceItemImage.src = "world_peace_item.png";
+let room8WorldPeaceItemLoaded = false;
+room8WorldPeaceItemImage.onload = () => { room8WorldPeaceItemLoaded = true; };
+
+// Secret room 2: April, Ronaldsmom, table with beef broccoli
+const APRIL_SIZE = 48;
+const APRIL_SPEED = 1.2;
+const APRIL_CONTACT_R = 36;
+const APRIL_MAX_HEARTS = 5;
+const APRIL_WAYPOINT_R = 18;
+const APRIL_ZONE_MARGIN = 40;
+const APRIL_LEFT = ROOM_MARGIN_X + APRIL_ZONE_MARGIN;
+const APRIL_RIGHT = ROOM_MARGIN_X + ROOM_WIDTH * 0.4;  // left 4/10 of room
+const APRIL_TOP_Y = ROOM_MARGIN_Y + APRIL_ZONE_MARGIN;
+const APRIL_BOTTOM_Y = ROOM_MARGIN_Y + ROOM_HEIGHT - APRIL_ZONE_MARGIN;
+const APRIL_WAYPOINTS = [
+  { x: APRIL_LEFT + 30, y: APRIL_TOP_Y + 50 },
+  { x: APRIL_RIGHT - 30, y: APRIL_TOP_Y + 50 },
+  { x: APRIL_RIGHT - 30, y: APRIL_BOTTOM_Y - 50 },
+  { x: APRIL_LEFT + 30, y: APRIL_BOTTOM_Y - 50 },
+];
+const APRIL_CAPTIONS = [
+  "Have some ground turkey with potatoes",
+  "do you need help?",
+  "If you need help, blink twice",
+];
+const APRIL_CAPTION_DURATION = 300;
+const aprilImage = new Image();
+aprilImage.src = "april_sprite.png";
+let aprilLoaded = false;
+const APRIL_SPRITE_COLS = 4;
+const APRIL_SPRITE_ROWS = 4;
+let aprilFrameWidth = 0;
+let aprilFrameHeight = 0;
+aprilImage.onload = () => {
+  aprilFrameWidth = aprilImage.width / APRIL_SPRITE_COLS;
+  aprilFrameHeight = aprilImage.height / APRIL_SPRITE_ROWS;
+  aprilLoaded = true;
+};
+let april = {
+  x: ROOM_MARGIN_X + ROOM_WIDTH * 0.2,
+  y: ROOM_MARGIN_Y + ROOM_HEIGHT / 2,
+  state: "patrol",
+  waypointIndex: 0,
+  facingAngle: 0,
+  walkFrameIndex: 0,
+  walkFrameCounter: 0,
+};
+let aprilContactCount = 0;
+let aprilCaptionText = "";
+let aprilCaptionUntil = 0;
+let aprilCaptionIndex = 0;
+let aprilWasInContactLastFrame = false;
+
+const RONALDSMOM_SIZE = 48;
+const RONALDSMOM_SPEED = 1.2;
+const RONALDSMOM_CAPTION_DURATION = 280;
+const RONALDSMOM_CAPTION_INTERVAL = 320;
+const RONALDSMOM_WAYPOINT_R = 18;
+const RONALDSMOM_ZONE_MARGIN = 40;
+const RONALDSMOM_LEFT = ROOM_MARGIN_X + ROOM_WIDTH * 0.6;  // right 4/10 of room
+const RONALDSMOM_RIGHT = ROOM_MARGIN_X + ROOM_WIDTH - RONALDSMOM_ZONE_MARGIN;
+const RONALDSMOM_TOP_Y = ROOM_MARGIN_Y + RONALDSMOM_ZONE_MARGIN;
+const RONALDSMOM_BOTTOM_Y = ROOM_MARGIN_Y + ROOM_HEIGHT - RONALDSMOM_ZONE_MARGIN;
+const MIN_NPC_NPC_SEPARATION = (APRIL_SIZE + RONALDSMOM_SIZE) / 2;
+const MIN_NPC_PLAYER_SEPARATION = APRIL_SIZE / 2 + Math.max(PLAYER_BOUNDS_HALF_WIDTH, PLAYER_BOUNDS_HALF_HEIGHT);
+const RONALDSMOM_WAYPOINTS = [
+  { x: RONALDSMOM_LEFT + 30, y: RONALDSMOM_TOP_Y + 50 },
+  { x: RONALDSMOM_RIGHT - 30, y: RONALDSMOM_TOP_Y + 50 },
+  { x: RONALDSMOM_RIGHT - 30, y: RONALDSMOM_BOTTOM_Y - 50 },
+  { x: RONALDSMOM_LEFT + 30, y: RONALDSMOM_BOTTOM_Y - 50 },
+];
+const RONALDSMOM_CAPTIONS = [
+  "Have some beef with broccoli",
+  "i'm Ronalds mom",
+  "this dish is very healthy",
+  "I grow squash in summer. The climate in Staten Island is just right",
+];
+const ronaldsmomImage = new Image();
+ronaldsmomImage.src = "ronaldsmom_sprite.png";
+let ronaldsmomLoaded = false;
+const RONALDSMOM_SPRITE_COLS = 4;
+const RONALDSMOM_SPRITE_ROWS = 4;
+let ronaldsmomFrameWidth = 0;
+let ronaldsmomFrameHeight = 0;
+ronaldsmomImage.onload = () => {
+  ronaldsmomFrameWidth = ronaldsmomImage.width / RONALDSMOM_SPRITE_COLS;
+  ronaldsmomFrameHeight = ronaldsmomImage.height / RONALDSMOM_SPRITE_ROWS;
+  ronaldsmomLoaded = true;
+};
+let ronaldsmom = {
+  x: ROOM_MARGIN_X + ROOM_WIDTH * 0.8,
+  y: ROOM_MARGIN_Y + ROOM_HEIGHT / 2,
+  state: "patrol",
+  waypointIndex: 0,
+  facingAngle: 0,
+  walkFrameIndex: 0,
+  walkFrameCounter: 0,
+};
+let ronaldsmomCaptionText = "";
+let ronaldsmomCaptionUntil = 0;
+let ronaldsmomCaptionIndex = 0;
+let ronaldsmomCaptionNextAt = 0;
+
+const ROOM11_TABLE_X = ROOM_MARGIN_X + ROOM_WIDTH - 140;
+const ROOM11_TABLE_Y = ROOM_MARGIN_Y + ROOM_HEIGHT / 2 - 30;
+const ROOM11_TABLE_W = 100;
+const ROOM11_TABLE_H = 24;
+const ROOM11_BEEF_BROCCOLI_X = ROOM11_TABLE_X - 20;
+const ROOM11_BEEF_BROCCOLI_Y = ROOM11_TABLE_Y - 20;  // so dish bottom rests on table top
+const ROOM11_BEEF_BROCCOLI_R = 40;
+const ROOM11_BEEF_BROCCOLI_MAX = 5;
+const beefBroccoliImage = new Image();
+beefBroccoliImage.src = "beef_broccoli.png";
+let beefBroccoliLoaded = false;
+beefBroccoliImage.onload = () => { beefBroccoliLoaded = true; };
+let beefBroccoliUses = 0;
+
 const ROOM9_CAVERN_DOOR_CX = ROOM_MARGIN_X + ROOM_WIDTH / 2;
-const ROOM9_CAVERN_DOOR_CY = ROOM_MARGIN_Y + ROOM_HEIGHT / 2;
+const ROOM9_CAVERN_DOOR_CY = ROOM_MARGIN_Y + ROOM_HEIGHT / 2 - 80;
 const ROOM9_CAVERN_DOOR_W = 100;
 const ROOM9_CAVERN_DOOR_H = 140;
+const ROOM9_DOORWAY_OPEN_SHIFT = 50; // when door is open, doorway (and steps) shift right; cave.png fills left space
 const ROOM9_DOOR_OPEN_DIST = 90;
 const ROOM9_DOOR_SWING_FRAMES = 40;
 const CAVERN_DESCEND_FRAMES = 90;
 const CAVERN_FADE_FRAMES = 35;
+
+const ROOM9_ABLS_ROOM = 9;
+const ABLS_RIGHT_MIN_X = ROOM_MARGIN_X + ROOM_WIDTH * 0.55;
+const ablsImage = new Image();
+ablsImage.src = "abls_sprite.png";
+let ablsLoaded = false;
+const ABLS_SPRITE_COLS = 4;
+const ABLS_SPRITE_ROWS = 4;
+let ablsFrameWidth = 0;
+let ablsFrameHeight = 0;
+ablsImage.onload = () => {
+  ablsFrameWidth = ablsImage.width / ABLS_SPRITE_COLS;
+  ablsFrameHeight = ablsImage.height / ABLS_SPRITE_ROWS;
+  ablsLoaded = true;
+};
+const ABLS_SIZE = 48;
+const ABLS_SPEED = 1.0;
+const ABLS_GIFT_R = 70;
+const ABLS_CAPTION = "why don't you have some coin to start off? Spend it wisely";
+const ABLS_CAPTION_CHAMBER2 = "In Chamber 2, you may find a surprise...";
+const ABLS_CAPTION_DURATION = 420;
+const ABLS_CHAMBER2_INTERVAL = 300; // 5 seconds at 60fps
+let abls = {
+  x: ROOM_MARGIN_X + ROOM_WIDTH - 80,
+  y: ROOM_MARGIN_Y + 70,
+  facingAngle: 0,
+  walkFrameIndex: 0,
+  walkFrameCounter: 0,
+};
+let ablsCaptionUntil = 0;
+let ablsCaptionText = "";
+let ablsCaptionChamber2NextAt = 0;
+let ablsCoinGiven = false;
 
 let keys = {};
 
@@ -346,7 +624,7 @@ class Entity {
 class Player extends Entity {
   constructor(x, y) {
     super(x, y, PLAYER_SIZE, "#4caf50");
-    this.hp = PLAYER_MAX_HP;
+    this.hp = PLAYER_START_HP;
     this.boundsHalfW = PLAYER_BOUNDS_HALF_WIDTH;
     this.boundsHalfH = PLAYER_BOUNDS_HALF_HEIGHT;
     this.weapon = WEAPON_FIREBALL;
@@ -368,7 +646,7 @@ class Player extends Entity {
   reset(x, y, roomId) {
     this.x = x;
     this.y = y;
-    this.hp = PLAYER_MAX_HP;
+    this.hp = PLAYER_START_HP;
     this.weapon = WEAPON_FIREBALL;
     this.facingAngle = 0;
     this.currentRoom = roomId;
@@ -677,11 +955,12 @@ function clamp(v, min, max) {
   return Math.max(min, Math.min(max, v));
 }
 
-// Obstacles per room: array of {x,y,size}
+// Obstacles per room: array of {x,y,size,hits}; 5 hits = shatter
+const BLOCK_SHATTER_HITS = 5;
 const roomObstacles = new Map();
 
 function createObstacle(x, y, size) {
-  return { x, y, size, get half() { return size / 2; } };
+  return { x, y, size, hits: 0, get half() { return size / 2; } };
 }
 
 // Doorway zones (room-local 0..640, 0..480) to avoid placing blocks
@@ -894,6 +1173,7 @@ let cameraOffsetX = 0;
 let cameraOffsetY = 0;
 let sealedDoorCaption = false; // true when player is at a sealed (boss) door
 let bossTypedSequence = "";   // type "boss" to warp to boss chamber
+let secretRoom2TypedSequence = "";  // type "secret room 2" to warp to second secret room
 // Room 9 cavern door: closed -> swinging -> open; then descending sequence to hidden room
 let room9DoorState = "closed"; // 'closed' | 'swinging' | 'open'
 let room9DoorSwingProgress = 0;
@@ -1086,12 +1366,22 @@ function resetGame() {
   projectiles = [];
   enemyProjectiles = [];
   deathScatterParticles = [];
+  blockShatterParticles = [];
   heartPickups = [];
   coinPickups = [];
   isGameOver = false;
   victory = false;
   room9DoorState = "closed";
   room9DoorSwingProgress = 0;
+  abls.x = ROOM_MARGIN_X + ROOM_WIDTH - 80;
+  abls.y = ROOM_MARGIN_Y + 70;
+  abls.facingAngle = 0;
+  abls.walkFrameIndex = 0;
+  abls.walkFrameCounter = 0;
+  ablsCaptionUntil = 0;
+  ablsCaptionText = "";
+  ablsCaptionChamber2NextAt = 0;
+  ablsCoinGiven = false;
   cavernSequence = "none";
   cavernProgress = 0;
   cavernBlackAlpha = 0;
@@ -1099,7 +1389,51 @@ function resetGame() {
   room2TrapDoorProgress = 0;
   room2SecretSequence = "none";
   room2SecretProgress = 0;
+  april.x = ROOM_MARGIN_X + ROOM_WIDTH * 0.2;
+  april.y = ROOM_MARGIN_Y + ROOM_HEIGHT / 2;
+  april.state = "patrol";
+  april.waypointIndex = 0;
+  april.facingAngle = 0;
+  april.walkFrameIndex = 0;
+  april.walkFrameCounter = 0;
+  aprilContactCount = 0;
+  aprilCaptionText = "";
+  aprilCaptionUntil = 0;
+  aprilCaptionIndex = 0;
+  aprilWasInContactLastFrame = false;
+  ronaldsmom.x = ROOM_MARGIN_X + ROOM_WIDTH * 0.8;
+  ronaldsmom.y = ROOM_MARGIN_Y + ROOM_HEIGHT / 2;
+  ronaldsmom.state = "patrol";
+  ronaldsmom.waypointIndex = 0;
+  ronaldsmom.facingAngle = 0;
+  ronaldsmom.walkFrameIndex = 0;
+  ronaldsmom.walkFrameCounter = 0;
+  ronaldsmomCaptionText = "";
+  ronaldsmomCaptionUntil = 0;
+  ronaldsmomCaptionIndex = 0;
+  ronaldsmomCaptionNextAt = 0;
+  beefBroccoliUses = 0;
   shopSold = { shield: false, key: false, potion: false };
+  salesman.x = SALESMAN_SQUARE[0].x;
+  salesman.y = SALESMAN_SQUARE[0].y;
+  salesman.state = "square";
+  salesman.waypointIndex = 0;
+  salesman.walkFrameIndex = 0;
+  salesman.walkFrameCounter = 0;
+  salesmanCaptionText = "";
+  salesmanCaptionUntil = 0;
+  salesmanCaptionIndex = 0;
+  salesmanCaptionNextAt = 0;
+  room8TableSold = { axe: false, endlessWar: false, worldPeace: false };
+  room8FirstWarSold = false;
+  room8WarRestocked = false;
+  hasLeftRoom8AfterWar = false;
+  room8PurchaseCaption = "";
+  room8PurchaseCaptionUntil = 0;
+  room8EndlessWarHighlightIndex = 0;
+  room8WarRestockHighlightIndex = 0;
+  wasInEndlessWarRangeLastFrame = false;
+  wasInRestockedWarRangeLastFrame = false;
   selectedStripIndex = 0;
   overlayEl.classList.add("hidden");
   updateHUD();
@@ -1153,6 +1487,48 @@ function spawnDeathScatter(x, y, roomId) {
   }
 }
 
+let blockShatterParticles = [];
+function spawnBlockShatter(x, y, roomId) {
+  const colors = ["#78909c", "#607d8b", "#546e7a", "#455a64", "#37474f", "#90a4ae"];
+  const numPieces = 14;
+  for (let i = 0; i < numPieces; i++) {
+    const angle = (Math.PI * 2 * i) / numPieces + Math.random() * 0.8;
+    const speed = 1.5 + Math.random() * 3.5;
+    blockShatterParticles.push({
+      x,
+      y,
+      vx: Math.cos(angle) * speed,
+      vy: Math.sin(angle) * speed,
+      size: 3 + Math.random() * 5,
+      color: colors[Math.floor(Math.random() * colors.length)],
+      alpha: 1,
+      roomId,
+    });
+  }
+}
+
+function updateBlockShatter() {
+  blockShatterParticles.forEach((p) => {
+    p.x += p.vx;
+    p.y += p.vy;
+    p.vy += 0.12;
+    p.alpha -= 0.02;
+  });
+  blockShatterParticles = blockShatterParticles.filter((p) => p.alpha > 0);
+}
+
+function drawBlockShatter() {
+  blockShatterParticles.forEach((p) => {
+    if (p.roomId !== player.currentRoom) return;
+    const hex = p.color;
+    const r = parseInt(hex.slice(1, 3), 16);
+    const g = parseInt(hex.slice(3, 5), 16);
+    const b = parseInt(hex.slice(5, 7), 16);
+    ctx.fillStyle = `rgba(${r},${g},${b},${p.alpha})`;
+    ctx.fillRect(p.x - p.size / 2, p.y - p.size / 2, p.size, p.size);
+  });
+}
+
 function updateDeathScatter() {
   deathScatterParticles.forEach((p) => {
     p.x += p.vx;
@@ -1176,14 +1552,23 @@ function drawDeathScatter() {
 }
 
 function updateHUD() {
-  const n = Math.max(0, Math.ceil(player.hp));  // fractional HP when shield halves damage
-  playerHeartsEl.innerHTML = n ? "<span class=\"heart\" aria-hidden=\"true\">♥</span>".repeat(n) : "";
-  playerHeartsEl.setAttribute("aria-label", `Health: ${player.hp} hearts`);
+  const hpNum = Number(player.hp);
+  const n = Math.max(0, Math.min(PLAYER_MAX_HP, Math.ceil(isNaN(hpNum) ? 0 : hpNum)));  // fractional HP when shield halves damage
+  if (playerHeartsEl) {
+    playerHeartsEl.innerHTML = n ? "<span class=\"heart\" aria-hidden=\"true\">♥</span>".repeat(n) : "";
+    playerHeartsEl.setAttribute("aria-label", `Health: ${n} hearts`);
+  }
   const aliveEnemies = enemies.filter((e) => e.hp > 0).length;
   enemiesValueEl.textContent = aliveEnemies.toString();
-  const c = Math.max(0, player.coins);
-  playerCoinsEl.innerHTML = c ? "<span class=\"coin\" aria-hidden=\"true\">●</span>".repeat(c) : "";
-  playerCoinsEl.setAttribute("aria-label", `Coins: ${c}`);
+  if (player.coins < 0) {
+    const billions = Math.round(-player.coins / 1e9);
+    playerCoinsEl.innerHTML = "<span style=\"color:#ffd700\">-" + billions + " Billion coins</span>";
+    playerCoinsEl.setAttribute("aria-label", "Coins: -" + billions + " billion");
+  } else {
+    const c = Math.max(0, player.coins);
+    playerCoinsEl.innerHTML = c ? "<span class=\"coin\" aria-hidden=\"true\">●</span>".repeat(c) : "";
+    playerCoinsEl.setAttribute("aria-label", `Coins: ${c}`);
+  }
 
   // Strip: weapons + inventory (R cycle, Spacebar select/use)
   if (stripSlotsEl) {
@@ -1198,8 +1583,8 @@ function updateHUD() {
       { type: "sword", name: "Sword", icon: "\u2694\uFE0F" },
       ...inv.map((item, i) => ({
         type: item,
-        name: item === "key" ? "Key" : "Potion",
-        icon: item === "key" ? "\uD83D\uDD11" : "\uD83E\uDDEA",
+        name: item === "key" ? "Key" : item === "axe" ? "Axe" : item === "shield" ? "Shield" : item === "endlessWar" ? "Endless War" : "Potion",
+        icon: item === "key" ? "\uD83D\uDD11" : item === "axe" ? "\uD83E\uDE93" : item === "shield" ? "\uD83D\uDEE1\uFE0F" : item === "endlessWar" ? "\uD83D\uDCA3" : "\uD83E\uDDEA",
         invIndex: i,
       })),
     ];
@@ -1348,7 +1733,10 @@ document.addEventListener("keydown", (e) => {
             e.preventDefault();
             return;
           }
-          // key: nothing
+          if (item === "axe") {
+            attemptAttack();
+          }
+          // key, shield, endlessWar: no use action (cosmetic / passive)
         }
         updateHUD();
       } else {
@@ -1375,14 +1763,22 @@ document.addEventListener("keydown", (e) => {
     if (!isGameOver && hasStarted && player.currentRoom === HIDDEN_ROOM) {
       tryPurchaseInSecretRoom();
     }
+    if (!isGameOver && hasStarted && player.currentRoom === SALESMAN_ROOM) {
+      tryPurchaseRoom8Table();
+    }
+    if (!isGameOver && hasStarted && player.currentRoom === SECRET_ROOM_2) {
+      trySecretRoom2BeefBroccoli();
+    }
     e.preventDefault();
   }
 
   if (!e.repeat && hasStarted && !isGameOver) {
     const key = e.key.toLowerCase();
-    const next = "boss"[bossTypedSequence.length];
-    if (key === next) {
+    const nextBoss = "boss"[bossTypedSequence.length];
+    const nextSecret2 = "secret room 2"[secretRoom2TypedSequence.length];
+    if (key === nextBoss) {
       bossTypedSequence += key;
+      secretRoom2TypedSequence = "";
       if (bossTypedSequence === "boss") {
         player.currentRoom = BOSS_ROOM;
         player.x = ROOM_MARGIN_X + ROOM_WIDTH / 2;
@@ -1393,8 +1789,22 @@ document.addEventListener("keydown", (e) => {
           bossChamberEl.play().catch(() => {});
         }
       }
+    } else if (key === nextSecret2) {
+      secretRoom2TypedSequence += key;
+      bossTypedSequence = "";
+      if (secretRoom2TypedSequence === "secret room 2") {
+        player.currentRoom = SECRET_ROOM_2;
+        player.x = ROOM_MARGIN_X + ROOM_WIDTH / 2;
+        player.y = ROOM_MARGIN_Y + ROOM_HEIGHT - 100;
+        secretRoom2TypedSequence = "";
+        if (secretDoorOpenEl) {
+          secretDoorOpenEl.currentTime = 0;
+          secretDoorOpenEl.play().catch(() => {});
+        }
+      }
     } else {
       bossTypedSequence = "";
+      secretRoom2TypedSequence = "";
     }
   }
 });
@@ -1467,8 +1877,28 @@ function attemptAttack() {
       ];
     shopkeeperCaptionUntil = gameFrameCount + SHOPKEEPER_CAPTION_DURATION;
   }
+  if (player.currentRoom === SALESMAN_ROOM) {
+    salesmanCaptionText =
+      SALESMAN_NO_WEAPON_PHRASES[
+        Math.floor(Math.random() * SALESMAN_NO_WEAPON_PHRASES.length)
+      ];
+    salesmanCaptionUntil = gameFrameCount + SHOPKEEPER_CAPTION_DURATION;
+  }
 
-  if (player.weapon === WEAPON_FIREBALL) {
+  const invForAttack = player.inventory || [];
+  const axeSelected = selectedStripIndex >= 2 && invForAttack[selectedStripIndex - 2] === "axe";
+  if (axeSelected || player.weapon === WEAPON_SWORD) {
+    if (axeSelected && swordSwingEl) {
+      swordSwingEl.currentTime = 0;
+      swordSwingEl.play().catch(() => {});
+    } else if (!axeSelected && swordStabEl) {
+      swordStabEl.currentTime = 0;
+      swordStabEl.play().catch(() => {});
+    }
+    performSwordAttack();
+    player.attackCooldown = 16;
+    player.swordSwingTimer = SWORD_SWING_DURATION;
+  } else if (player.weapon === WEAPON_FIREBALL) {
     if (fireballWhooshEl) {
       fireballWhooshEl.currentTime = 0;
       fireballWhooshEl.play().catch(() => {});
@@ -1488,15 +1918,8 @@ function attemptAttack() {
     });
 
     player.attackCooldown = 18;
-  } else if (player.weapon === WEAPON_SWORD) {
-    if (swordSwingEl) {
-      swordSwingEl.currentTime = 0;
-      swordSwingEl.play().catch(() => {});
-    }
-    performSwordAttack();
-    player.attackCooldown = 16;
-    player.swordSwingTimer = SWORD_SWING_DURATION;
   }
+  // (no else: other slots like key/shield do nothing on attack)
 }
 
 function performSwordAttack() {
@@ -1531,6 +1954,26 @@ function performSwordAttack() {
       }
     }
   });
+
+  // Hit stationary blocks in arc; 5 hits = shatter
+  const obstacles = roomObstacles.get(player.currentRoom) || [];
+  for (let i = obstacles.length - 1; i >= 0; i--) {
+    const ob = obstacles[i];
+    const dx = ob.x - player.x;
+    const dy = ob.y - player.y;
+    const dist = Math.hypot(dx, dy);
+    if (dist > player.half + SWORD_RANGE + ob.half) continue;
+    const obAngle = Math.atan2(dy, dx);
+    let diff = obAngle - angle;
+    while (diff > Math.PI) diff -= Math.PI * 2;
+    while (diff < -Math.PI) diff += Math.PI * 2;
+    if (Math.abs(diff) > SWORD_ARC) continue;
+    ob.hits++;
+    if (ob.hits >= BLOCK_SHATTER_HITS) {
+      spawnBlockShatter(ob.x, ob.y, player.currentRoom);
+      obstacles.splice(i, 1);
+    }
+  }
 }
 
 function updatePlayerMovement() {
@@ -1776,6 +2219,10 @@ function updateCavernDoorAndSequence() {
     if (room9DoorState === "closed" && dist < ROOM9_DOOR_OPEN_DIST) {
       room9DoorState = "swinging";
       room9DoorSwingProgress = 0;
+      if (caveDoorOpenEl) {
+        caveDoorOpenEl.currentTime = 0;
+        caveDoorOpenEl.play().catch(() => {});
+      }
     }
     if (room9DoorState === "swinging") {
       room9DoorSwingProgress++;
@@ -1784,9 +2231,11 @@ function updateCavernDoorAndSequence() {
       }
     }
     if (room9DoorState === "open" && cavernSequence === "none") {
+      const doorRight = cx + halfW;
+      const doorLeftOpen = cx - halfW + ROOM9_DOORWAY_OPEN_SHIFT;
       const inDoor =
-        player.x >= cx - halfW &&
-        player.x <= cx + halfW &&
+        player.x >= doorLeftOpen &&
+        player.x <= doorRight &&
         player.y >= cy - halfH &&
         player.y <= cy + halfH;
       if (inDoor) {
@@ -1840,7 +2289,7 @@ function updateCavernDoorAndSequence() {
     player.y -= 2.2;
     if (cavernProgress >= CAVERN_DESCEND_FRAMES) {
       cavernSequence = "none";
-      player.x = ROOM9_CAVERN_DOOR_CX + ROOM9_CAVERN_DOOR_W / 2 + 28;
+      player.x = ROOM9_CAVERN_DOOR_CX + ROOM9_CAVERN_DOOR_W / 2 + 40;
       player.y = ROOM9_CAVERN_DOOR_CY;
     }
   }
@@ -1870,12 +2319,12 @@ function updateRoom2TrapDoorAndSequence() {
       player.x = ROOM_MARGIN_X + ROOM_WIDTH / 2;
       player.y = ROOM_MARGIN_Y + 80;
     }
-  } else if (room2SecretSequence === "ascending") {
+  } else     if (room2SecretSequence === "ascending") {
     room2SecretProgress++;
     player.y -= 2.2;
     if (room2SecretProgress >= ROOM2_DESCEND_FRAMES) {
       room2SecretSequence = "none";
-      player.x = ROOM_MARGIN_X + ROOM2_DOORWAY_LEFT + ROOM2_DOORWAY_W / 2;
+      player.x = ROOM_MARGIN_X + ROOM2_DOORWAY_LEFT + ROOM2_DOORWAY_W + 28;
       player.y = ROOM_MARGIN_Y + ROOM2_DOORWAY_TOP - 24;
     }
   }
@@ -2581,7 +3030,22 @@ function drawRoom9CavernDoor() {
   const left = cx - w / 2;
   const top = cy - h / 2;
 
-  // Dark brown arch / frame (cavern mouth)
+  const slideT = room9DoorState === "swinging"
+    ? room9DoorSwingProgress / ROOM9_DOOR_SWING_FRAMES
+    : room9DoorState === "open"
+      ? 1
+      : 0;
+
+  if (caveDoorLoaded) {
+    const slideX = slideT * w;
+    ctx.drawImage(caveDoorImage, left + slideX, top, w, h);
+    if (slideT >= 1 && caveLoaded) {
+      ctx.drawImage(caveImage, left + 24, top, ROOM9_DOORWAY_OPEN_SHIFT, h);
+    }
+    return;
+  }
+
+  // Fallback: dark brown arch / frame (cavern mouth)
   ctx.fillStyle = "#2a2018";
   ctx.beginPath();
   ctx.moveTo(left, top + h);
@@ -2595,15 +3059,8 @@ function drawRoom9CavernDoor() {
   ctx.lineWidth = 4;
   ctx.stroke();
 
-  // Brown door panel slides open to the right
-  const slideT = room9DoorState === "swinging"
-    ? room9DoorSwingProgress / ROOM9_DOOR_SWING_FRAMES
-    : room9DoorState === "open"
-      ? 1
-      : 0;
   const panelW = w - 8;
   const slideX = slideT * panelW;
-
   if (slideT < 1) {
     ctx.fillStyle = "#6d4c41";
     ctx.fillRect(left + slideX, top + 20, panelW, h - 25);
@@ -2616,6 +3073,7 @@ function drawRoom9CavernDoor() {
 function drawCavernSteps() {
   const cx = ROOM9_CAVERN_DOOR_CX;
   const cy = ROOM9_CAVERN_DOOR_CY;
+  const stepCenterX = cx;
   const stepW = 90;
   const stepH = 10;
   const numSteps = 12;
@@ -2623,7 +3081,7 @@ function drawCavernSteps() {
   ctx.fillStyle = "#3d3d4a";
   for (let i = 0; i < numSteps; i++) {
     const y = startY + i * (stepH + 4);
-    const x = cx - stepW / 2 + (i % 2) * 8;
+    const x = stepCenterX - stepW / 2 + (i % 2) * 8;
     ctx.fillRect(x, y, stepW, stepH);
   }
 }
@@ -2635,7 +3093,10 @@ function tryPurchaseInSecretRoom() {
     const iy = SHOP_CENTER_Y + item.offsetY;
     const dist = Math.hypot(player.x - ix, player.y - iy);
     if (dist > SHOP_ITEM_R) return;
-    if (player.coins < item.price) return;
+    if (player.coins < item.price) {
+      if (purchaseDenyEl) { purchaseDenyEl.currentTime = 0; purchaseDenyEl.play().catch(() => {}); }
+      return;
+    }
 
     player.coins -= item.price;
     shopSold[item.id] = true;
@@ -2643,7 +3104,7 @@ function tryPurchaseInSecretRoom() {
     if (item.id === "shield") {
       player.hasShield = true;
       player.shieldHp = 1;
-      // Shield is equipped, not in inventory; drawn in front of player
+      player.inventory.push("shield");
     } else if (item.id === "key") {
       player.hasBossKey = true;
       player.inventory.push("key");
@@ -2673,7 +3134,8 @@ function getShopkeeperFollowTarget() {
 function updateShopkeeper() {
   if (player.currentRoom !== HIDDEN_ROOM) return;
 
-  if (shopkeeper.state === "following" && gameFrameCount >= shopkeeperCaptionNextAt) {
+  const shopkeeperVisible = shopkeeper.state === "square" || shopkeeper.state === "to_rest" || shopkeeper.state === "following";
+  if (shopkeeperVisible && gameFrameCount >= shopkeeperCaptionNextAt) {
     shopkeeperCaptionText = SHOPKEEPER_CAPTION_PHRASES[shopkeeperCaptionIndex];
     shopkeeperCaptionIndex = (shopkeeperCaptionIndex + 1) % 4;
     shopkeeperCaptionUntil = gameFrameCount + SHOPKEEPER_CAPTION_DURATION;
@@ -2704,7 +3166,7 @@ function updateShopkeeper() {
         }
       } else if (shopkeeper.state === "to_rest") {
         shopkeeper.state = "following";
-        shopkeeperCaptionNextAt = gameFrameCount + SHOPKEEPER_CAPTION_INTERVAL;
+        shopkeeperCaptionNextAt = gameFrameCount; // start speaking immediately
       }
     } else {
       const move = Math.min(SHOPKEEPER_SPEED, dist);
@@ -2730,6 +3192,30 @@ function updateShopkeeper() {
       player.x - shopkeeper.x
     );
   }
+  separateNpcFromPlayer(
+    shopkeeper,
+    SHOPKEEPER_SIZE / 2,
+    ROOM_MARGIN_X + 50,
+    ROOM_MARGIN_X + ROOM_WIDTH - 50,
+    SHOPKEEPER_COUNTER_Y_MIN,
+    ROOM_MARGIN_Y + ROOM_HEIGHT - 40
+  );
+}
+
+function separateNpcFromPlayer(npc, npcHalf, minX, maxX, minY, maxY) {
+  const playerR = Math.max(player.boundsHalfW, player.boundsHalfH);
+  const minDist = npcHalf + playerR;
+  const dx = player.x - npc.x;
+  const dy = player.y - npc.y;
+  const dist = Math.hypot(dx, dy);
+  if (dist >= minDist || dist < 1e-6) return;
+  const overlap = minDist - dist;
+  const nx = dx / dist;
+  const ny = dy / dist;
+  npc.x -= nx * overlap;
+  npc.y -= ny * overlap;
+  npc.x = Math.max(minX, Math.min(maxX, npc.x));
+  npc.y = Math.max(minY, Math.min(maxY, npc.y));
 }
 
 function shopkeeperFacingAngleToRow(angle) {
@@ -2765,31 +3251,65 @@ function drawShopkeeper() {
   );
 }
 
+function wrapCaptionLines(text, maxWidth) {
+  ctx.font = "14px sans-serif";
+  const words = text.split(/\s+/);
+  const lines = [];
+  let current = "";
+  for (const w of words) {
+    const trial = current ? current + " " + w : w;
+    if (ctx.measureText(trial).width <= maxWidth) {
+      current = trial;
+    } else {
+      if (current) lines.push(current);
+      current = ctx.measureText(w).width <= maxWidth ? w : w;
+    }
+  }
+  if (current) lines.push(current);
+  return lines;
+}
+
 function drawShopkeeperCaption() {
   if (player.currentRoom !== HIDDEN_ROOM) return;
   if (gameFrameCount >= shopkeeperCaptionUntil || !shopkeeperCaptionText) return;
-  const line = shopkeeperCaptionText;
   const lineHeight = 18;
   const padding = 12;
-  const maxW = ctx.measureText(line).width;
-  const bubbleW = Math.max(maxW + padding * 2, 120);
-  const bubbleH = lineHeight + padding * 2;
-  const bx = SHOP_CENTER_X;
-  const by = ROOM_MARGIN_Y + 52;
+  const maxTextWidth = 200;
+  const lines = wrapCaptionLines(shopkeeperCaptionText, maxTextWidth);
+  let bubbleW = 120;
+  for (const l of lines) {
+    bubbleW = Math.max(bubbleW, ctx.measureText(l).width + padding * 2);
+  }
+  bubbleW = Math.min(bubbleW, 260);
+  const bubbleH = lines.length * lineHeight + padding * 2;
   const r = 8;
+  const gap = 10;
+  const headTop = shopkeeper.y - SHOPKEEPER_SIZE / 2;
+  const feetBottom = shopkeeper.y + SHOPKEEPER_SIZE / 2;
+  const tableCenterY = SHOP_CENTER_Y;
+  const captionAbove = shopkeeper.y < tableCenterY;
+  let bx = shopkeeper.x - bubbleW / 2;
+  bx = Math.max(ROOM_MARGIN_X + CAPTION_MARGIN, Math.min(ROOM_MARGIN_X + ROOM_WIDTH - bubbleW - CAPTION_MARGIN, bx));
+  let by;
+  if (captionAbove) {
+    by = headTop - gap - bubbleH;
+  } else {
+    by = feetBottom + gap;
+  }
+  by = Math.max(ROOM_MARGIN_Y + CAPTION_MARGIN, Math.min(ROOM_MARGIN_Y + ROOM_HEIGHT - bubbleH - CAPTION_MARGIN, by));
   ctx.fillStyle = "rgba(30,30,40,0.95)";
   ctx.strokeStyle = "#607d8b";
   ctx.lineWidth = 2;
   ctx.beginPath();
   ctx.moveTo(bx + r, by);
-  ctx.lineTo(bx + bubbleW / 2 - r, by);
-  ctx.quadraticCurveTo(bx + bubbleW / 2, by, bx + bubbleW / 2, by + r);
-  ctx.lineTo(bx + bubbleW / 2, by + bubbleH - r);
-  ctx.quadraticCurveTo(bx + bubbleW / 2, by + bubbleH, bx + bubbleW / 2 - r, by + bubbleH);
-  ctx.lineTo(bx - bubbleW / 2 + r, by + bubbleH);
-  ctx.quadraticCurveTo(bx - bubbleW / 2, by + bubbleH, bx - bubbleW / 2, by + bubbleH - r);
-  ctx.lineTo(bx - bubbleW / 2, by + r);
-  ctx.quadraticCurveTo(bx - bubbleW / 2, by, bx - bubbleW / 2 + r, by);
+  ctx.lineTo(bx + bubbleW - r, by);
+  ctx.quadraticCurveTo(bx + bubbleW, by, bx + bubbleW, by + r);
+  ctx.lineTo(bx + bubbleW, by + bubbleH - r);
+  ctx.quadraticCurveTo(bx + bubbleW, by + bubbleH, bx + bubbleW - r, by + bubbleH);
+  ctx.lineTo(bx + r, by + bubbleH);
+  ctx.quadraticCurveTo(bx, by + bubbleH, bx, by + bubbleH - r);
+  ctx.lineTo(bx, by + r);
+  ctx.quadraticCurveTo(bx, by, bx + r, by);
   ctx.closePath();
   ctx.fill();
   ctx.stroke();
@@ -2797,7 +3317,835 @@ function drawShopkeeperCaption() {
   ctx.font = "14px sans-serif";
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
-  ctx.fillText(line, bx, by + bubbleH / 2);
+  const startY = by + padding + lineHeight / 2;
+  lines.forEach((line, i) => {
+    ctx.fillText(line, bx + bubbleW / 2, startY + i * lineHeight);
+  });
+}
+
+function updateApril() {
+  if (player.currentRoom !== SECRET_ROOM_2) return;
+  let target;
+  if (april.state === "patrol") {
+    target = APRIL_WAYPOINTS[april.waypointIndex];
+    const dx = target.x - april.x;
+    const dy = target.y - april.y;
+    const dist = Math.hypot(dx, dy);
+    if (dist <= APRIL_WAYPOINT_R) {
+      april.waypointIndex = (april.waypointIndex + 1) % APRIL_WAYPOINTS.length;
+      if (april.waypointIndex === 0) april.state = "following";
+    } else if (dist > 8) {
+      const move = Math.min(APRIL_SPEED, dist);
+      april.x += (dx / dist) * move;
+      april.y += (dy / dist) * move;
+      april.facingAngle = Math.atan2(dy, dx);
+      april.x = Math.max(APRIL_LEFT, Math.min(APRIL_RIGHT, april.x));
+      april.y = Math.max(APRIL_TOP_Y, Math.min(APRIL_BOTTOM_Y, april.y));
+      april.walkFrameCounter++;
+      if (april.walkFrameCounter >= 10) {
+        april.walkFrameCounter = 0;
+        april.walkFrameIndex = (april.walkFrameIndex + 1) % 4;
+      }
+    }
+  } else {
+    target = {
+      x: Math.max(APRIL_LEFT, Math.min(APRIL_RIGHT, player.x)),
+      y: Math.max(APRIL_TOP_Y, Math.min(APRIL_BOTTOM_Y, player.y)),
+    };
+    const dx = target.x - april.x;
+    const dy = target.y - april.y;
+    const dist = Math.hypot(dx, dy);
+    if (dist > 8) {
+      const move = Math.min(APRIL_SPEED, dist);
+      april.x += (dx / dist) * move;
+      april.y += (dy / dist) * move;
+      april.facingAngle = Math.atan2(dy, dx);
+      april.x = Math.max(APRIL_LEFT, Math.min(APRIL_RIGHT, april.x));
+      april.y = Math.max(APRIL_TOP_Y, Math.min(APRIL_BOTTOM_Y, april.y));
+      april.walkFrameCounter++;
+      if (april.walkFrameCounter >= 10) {
+        april.walkFrameCounter = 0;
+        april.walkFrameIndex = (april.walkFrameIndex + 1) % 4;
+      }
+    }
+  }
+  const aprilBounds = { x: april.x, y: april.y, boundsHalfW: APRIL_SIZE / 2, boundsHalfH: APRIL_SIZE / 2 };
+  const inContact = rectIntersect(player, aprilBounds);
+  if (inContact && !aprilWasInContactLastFrame) {
+    aprilCaptionText = APRIL_CAPTIONS[aprilCaptionIndex % APRIL_CAPTIONS.length];
+    aprilCaptionIndex = (aprilCaptionIndex + 1) % APRIL_CAPTIONS.length;
+    aprilCaptionUntil = gameFrameCount + APRIL_CAPTION_DURATION;
+    if (aprilContactCount < APRIL_MAX_HEARTS) {
+      aprilContactCount++;
+      const curHp = Number(player.hp);
+      player.hp = Math.min(PLAYER_MAX_HP, (isNaN(curHp) ? 0 : curHp) + 1);
+      if (heartPickupEl) { heartPickupEl.currentTime = 0; heartPickupEl.play().catch(() => {}); }
+      updateHUD();
+    }
+  }
+  aprilWasInContactLastFrame = inContact;
+}
+
+function updateRonaldsmom() {
+  if (player.currentRoom !== SECRET_ROOM_2) return;
+  if (gameFrameCount >= ronaldsmomCaptionNextAt) {
+    ronaldsmomCaptionText = RONALDSMOM_CAPTIONS[ronaldsmomCaptionIndex];
+    ronaldsmomCaptionIndex = (ronaldsmomCaptionIndex + 1) % RONALDSMOM_CAPTIONS.length;
+    ronaldsmomCaptionUntil = gameFrameCount + RONALDSMOM_CAPTION_DURATION;
+    ronaldsmomCaptionNextAt = gameFrameCount + RONALDSMOM_CAPTION_INTERVAL;
+  }
+  let target;
+  if (ronaldsmom.state === "patrol") {
+    target = RONALDSMOM_WAYPOINTS[ronaldsmom.waypointIndex];
+    const dx = target.x - ronaldsmom.x;
+    const dy = target.y - ronaldsmom.y;
+    const dist = Math.hypot(dx, dy);
+    if (dist <= RONALDSMOM_WAYPOINT_R) {
+      ronaldsmom.waypointIndex = (ronaldsmom.waypointIndex + 1) % RONALDSMOM_WAYPOINTS.length;
+      if (ronaldsmom.waypointIndex === 0) ronaldsmom.state = "following";
+    } else if (dist > 8) {
+      const move = Math.min(RONALDSMOM_SPEED, dist);
+      ronaldsmom.x += (dx / dist) * move;
+      ronaldsmom.y += (dy / dist) * move;
+      ronaldsmom.facingAngle = Math.atan2(dy, dx);
+      ronaldsmom.x = Math.max(RONALDSMOM_LEFT, Math.min(RONALDSMOM_RIGHT, ronaldsmom.x));
+      ronaldsmom.y = Math.max(RONALDSMOM_TOP_Y, Math.min(RONALDSMOM_BOTTOM_Y, ronaldsmom.y));
+      ronaldsmom.walkFrameCounter++;
+      if (ronaldsmom.walkFrameCounter >= 10) {
+        ronaldsmom.walkFrameCounter = 0;
+        ronaldsmom.walkFrameIndex = (ronaldsmom.walkFrameIndex + 1) % 4;
+      }
+    }
+  } else {
+    target = {
+      x: Math.max(RONALDSMOM_LEFT, Math.min(RONALDSMOM_RIGHT, player.x)),
+      y: Math.max(RONALDSMOM_TOP_Y, Math.min(RONALDSMOM_BOTTOM_Y, player.y)),
+    };
+    const dx = target.x - ronaldsmom.x;
+    const dy = target.y - ronaldsmom.y;
+    const dist = Math.hypot(dx, dy);
+    if (dist > 8) {
+      const move = Math.min(RONALDSMOM_SPEED, dist);
+      ronaldsmom.x += (dx / dist) * move;
+      ronaldsmom.y += (dy / dist) * move;
+      ronaldsmom.facingAngle = Math.atan2(dy, dx);
+      ronaldsmom.x = Math.max(RONALDSMOM_LEFT, Math.min(RONALDSMOM_RIGHT, ronaldsmom.x));
+      ronaldsmom.y = Math.max(RONALDSMOM_TOP_Y, Math.min(RONALDSMOM_BOTTOM_Y, ronaldsmom.y));
+      ronaldsmom.walkFrameCounter++;
+      if (ronaldsmom.walkFrameCounter >= 10) {
+        ronaldsmom.walkFrameCounter = 0;
+        ronaldsmom.walkFrameIndex = (ronaldsmom.walkFrameIndex + 1) % 4;
+      }
+    }
+  }
+  separateRoom11Characters();
+}
+
+function separateRoom11Characters() {
+  if (player.currentRoom !== SECRET_ROOM_2) return;
+
+  function pushApart(ax, ay, bx, by, minDist) {
+    const dx = bx - ax;
+    const dy = by - ay;
+    const dist = Math.hypot(dx, dy);
+    if (dist >= minDist || dist < 1e-6) return { moveAX: 0, moveAY: 0, moveBX: 0, moveBY: 0 };
+    const overlap = minDist - dist;
+    const nx = dx / dist;
+    const ny = dy / dist;
+    return {
+      moveAX: -nx * overlap / 2,
+      moveAY: -ny * overlap / 2,
+      moveBX: nx * overlap / 2,
+      moveBY: ny * overlap / 2,
+    };
+  }
+
+  let aprilDx = 0, aprilDy = 0, ronaldsmomDx = 0, ronaldsmomDy = 0;
+
+  const aprRon = pushApart(april.x, april.y, ronaldsmom.x, ronaldsmom.y, MIN_NPC_NPC_SEPARATION);
+  aprilDx += aprRon.moveAX;
+  aprilDy += aprRon.moveAY;
+  ronaldsmomDx += aprRon.moveBX;
+  ronaldsmomDy += aprRon.moveBY;
+
+  const aprPl = pushApart(april.x, april.y, player.x, player.y, MIN_NPC_PLAYER_SEPARATION);
+  aprilDx += aprPl.moveAX;
+  aprilDy += aprPl.moveAY;
+
+  const ronPl = pushApart(ronaldsmom.x, ronaldsmom.y, player.x, player.y, MIN_NPC_PLAYER_SEPARATION);
+  ronaldsmomDx += ronPl.moveAX;
+  ronaldsmomDy += ronPl.moveAY;
+
+  april.x += aprilDx;
+  april.y += aprilDy;
+  ronaldsmom.x += ronaldsmomDx;
+  ronaldsmom.y += ronaldsmomDy;
+
+  april.x = Math.max(APRIL_LEFT, Math.min(APRIL_RIGHT, april.x));
+  april.y = Math.max(APRIL_TOP_Y, Math.min(APRIL_BOTTOM_Y, april.y));
+  ronaldsmom.x = Math.max(RONALDSMOM_LEFT, Math.min(RONALDSMOM_RIGHT, ronaldsmom.x));
+  ronaldsmom.y = Math.max(RONALDSMOM_TOP_Y, Math.min(RONALDSMOM_BOTTOM_Y, ronaldsmom.y));
+}
+
+function trySecretRoom2BeefBroccoli() {
+  if (player.currentRoom !== SECRET_ROOM_2) return;
+  const dist = Math.hypot(player.x - ROOM11_BEEF_BROCCOLI_X, player.y - ROOM11_BEEF_BROCCOLI_Y);
+  if (dist > ROOM11_BEEF_BROCCOLI_R) return;
+  if (beefBroccoliUses >= ROOM11_BEEF_BROCCOLI_MAX) return;
+  beefBroccoliUses++;
+  const curHp = Number(player.hp);
+  player.hp = Math.min(PLAYER_MAX_HP, (isNaN(curHp) ? 0 : curHp) + 1);
+  if (heartPickupEl) { heartPickupEl.currentTime = 0; heartPickupEl.play().catch(() => {}); }
+  updateHUD();
+}
+
+function drawRoom11Table() {
+  if (player.currentRoom !== SECRET_ROOM_2) return;
+  const tableLeft = ROOM11_TABLE_X - ROOM11_TABLE_W / 2;
+  const tableTop = ROOM11_TABLE_Y;
+  const legW = 12;
+  const legH = 42;
+  const legsY = tableTop + ROOM11_TABLE_H;
+  ctx.fillStyle = "#4e342e";
+  ctx.fillRect(tableLeft, legsY, legW, legH);
+  ctx.fillRect(tableLeft + ROOM11_TABLE_W - legW, legsY, legW, legH);
+  ctx.fillStyle = "#5d4037";
+  ctx.fillRect(tableLeft, tableTop, ROOM11_TABLE_W, ROOM11_TABLE_H);
+  ctx.strokeStyle = "#4e342e";
+  ctx.lineWidth = 2;
+  ctx.strokeRect(tableLeft, tableTop, ROOM11_TABLE_W, ROOM11_TABLE_H);
+  if (beefBroccoliUses < ROOM11_BEEF_BROCCOLI_MAX) {
+    if (beefBroccoliLoaded) {
+      ctx.drawImage(beefBroccoliImage, ROOM11_BEEF_BROCCOLI_X - 24, ROOM11_BEEF_BROCCOLI_Y - 28, 48, 48);
+    } else {
+      ctx.fillStyle = "#8d6e63";
+      ctx.beginPath();
+      ctx.ellipse(ROOM11_BEEF_BROCCOLI_X, ROOM11_BEEF_BROCCOLI_Y, 20, 16, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = "#5d4037";
+      ctx.lineWidth = 1;
+      ctx.stroke();
+    }
+  } else {
+    ctx.fillStyle = "rgba(80,80,80,0.6)";
+    ctx.beginPath();
+    ctx.ellipse(ROOM11_BEEF_BROCCOLI_X, ROOM11_BEEF_BROCCOLI_Y, 20, 20, 0, 0, Math.PI * 2);
+    ctx.fill();
+  }
+}
+
+function drawApril() {
+  if (player.currentRoom !== SECRET_ROOM_2 || !aprilLoaded) return;
+  const row = shopkeeperFacingAngleToRow(april.facingAngle);
+  const col = [0, 2, 3, 2][april.walkFrameIndex % 4];
+  const sx = col * aprilFrameWidth;
+  const sy = row * aprilFrameHeight;
+  const w = APRIL_SIZE;
+  const scale = w / aprilFrameWidth;
+  const h = aprilFrameHeight * scale;
+  ctx.drawImage(aprilImage, sx, sy, aprilFrameWidth, aprilFrameHeight, april.x - w / 2, april.y - h / 2, w, h);
+}
+
+function drawAprilCaption() {
+  if (player.currentRoom !== SECRET_ROOM_2) return;
+  if (gameFrameCount >= aprilCaptionUntil || !aprilCaptionText) return;
+  const lineHeight = 18;
+  const padding = 12;
+  const maxBubbleW = 260;
+  const lines = wrapSalesmanCaption(aprilCaptionText, maxBubbleW - padding * 2);
+  let bubbleW = 120;
+  for (const l of lines) bubbleW = Math.max(bubbleW, ctx.measureText(l).width + padding * 2);
+  bubbleW = Math.min(bubbleW, maxBubbleW);
+  const bubbleH = lines.length * lineHeight + padding * 2;
+  const r = 8;
+  const gap = 10;
+  const headY = april.y - APRIL_SIZE / 2;
+  let bx = (april.x - APRIL_SIZE / 2 - gap) - bubbleW;
+  let by = headY - bubbleH - gap;
+  bx = Math.max(ROOM_MARGIN_X + CAPTION_MARGIN, Math.min(ROOM_MARGIN_X + ROOM_WIDTH - bubbleW - CAPTION_MARGIN, bx));
+  by = Math.max(ROOM_MARGIN_Y + CAPTION_MARGIN, Math.min(ROOM_MARGIN_Y + ROOM_HEIGHT - bubbleH - CAPTION_MARGIN, by));
+  ctx.fillStyle = "rgba(30,30,40,0.95)";
+  ctx.strokeStyle = "#607d8b";
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(bx + r, by);
+  ctx.lineTo(bx + bubbleW - r, by);
+  ctx.quadraticCurveTo(bx + bubbleW, by, bx + bubbleW, by + r);
+  ctx.lineTo(bx + bubbleW, by + bubbleH - r);
+  ctx.quadraticCurveTo(bx + bubbleW, by + bubbleH, bx + bubbleW - r, by + bubbleH);
+  ctx.lineTo(bx + r, by + bubbleH);
+  ctx.quadraticCurveTo(bx, by + bubbleH, bx, by + bubbleH - r);
+  ctx.lineTo(bx, by + r);
+  ctx.quadraticCurveTo(bx, by, bx + r, by);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+  ctx.fillStyle = "#eceff1";
+  ctx.font = "14px sans-serif";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  const startY = by + padding + lineHeight / 2;
+  lines.forEach((line, i) => { ctx.fillText(line, bx + bubbleW / 2, startY + i * lineHeight); });
+}
+
+function drawRonaldsmom() {
+  if (player.currentRoom !== SECRET_ROOM_2 || !ronaldsmomLoaded) return;
+  const row = shopkeeperFacingAngleToRow(ronaldsmom.facingAngle);
+  const col = [0, 2, 3, 2][ronaldsmom.walkFrameIndex % 4];
+  const sx = col * ronaldsmomFrameWidth;
+  const sy = row * ronaldsmomFrameHeight;
+  const w = RONALDSMOM_SIZE;
+  const scale = w / ronaldsmomFrameWidth;
+  const h = ronaldsmomFrameHeight * scale;
+  ctx.drawImage(ronaldsmomImage, sx, sy, ronaldsmomFrameWidth, ronaldsmomFrameHeight, ronaldsmom.x - w / 2, ronaldsmom.y - h / 2, w, h);
+}
+
+function drawRonaldsmomCaption() {
+  if (player.currentRoom !== SECRET_ROOM_2) return;
+  if (gameFrameCount >= ronaldsmomCaptionUntil || !ronaldsmomCaptionText) return;
+  const lineHeight = 18;
+  const padding = 12;
+  const maxBubbleW = 280;
+  const lines = wrapSalesmanCaption(ronaldsmomCaptionText, maxBubbleW - padding * 2);
+  let bubbleW = 120;
+  for (const l of lines) bubbleW = Math.max(bubbleW, ctx.measureText(l).width + padding * 2);
+  bubbleW = Math.min(bubbleW, maxBubbleW);
+  const bubbleH = lines.length * lineHeight + padding * 2;
+  const r = 8;
+  const gap = 10;
+  const headY = ronaldsmom.y - RONALDSMOM_SIZE / 2;
+  let bx = ronaldsmom.x + RONALDSMOM_SIZE / 2 + gap;
+  let by = headY - bubbleH - gap;
+  bx = Math.max(ROOM_MARGIN_X + CAPTION_MARGIN, Math.min(ROOM_MARGIN_X + ROOM_WIDTH - bubbleW - CAPTION_MARGIN, bx));
+  by = Math.max(ROOM_MARGIN_Y + CAPTION_MARGIN, Math.min(ROOM_MARGIN_Y + ROOM_HEIGHT - bubbleH - CAPTION_MARGIN, by));
+  ctx.fillStyle = "rgba(30,30,40,0.95)";
+  ctx.strokeStyle = "#607d8b";
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(bx + r, by);
+  ctx.lineTo(bx + bubbleW - r, by);
+  ctx.quadraticCurveTo(bx + bubbleW, by, bx + bubbleW, by + r);
+  ctx.lineTo(bx + bubbleW, by + bubbleH - r);
+  ctx.quadraticCurveTo(bx + bubbleW, by + bubbleH, bx + bubbleW - r, by + bubbleH);
+  ctx.lineTo(bx + r, by + bubbleH);
+  ctx.quadraticCurveTo(bx, by + bubbleH, bx, by + bubbleH - r);
+  ctx.lineTo(bx, by + r);
+  ctx.quadraticCurveTo(bx, by, bx + r, by);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+  ctx.fillStyle = "#eceff1";
+  ctx.font = "14px sans-serif";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  const startY = by + padding + lineHeight / 2;
+  lines.forEach((line, i) => { ctx.fillText(line, bx + bubbleW / 2, startY + i * lineHeight); });
+}
+
+function tryPurchaseRoom8Table() {
+  const tableCenterY = ROOM_MARGIN_Y + ROOM_HEIGHT / 2;
+  const CAPTION_FRAMES = 300;
+
+  ROOM8_TABLE_ITEMS.forEach((item) => {
+    const ix = ROOM8_TABLE_X;
+    const iy = tableCenterY + item.offsetY;
+    const dist = Math.hypot(player.x - ix, player.y - iy);
+    if (dist > ROOM8_TABLE_ITEM_R) return;
+
+    if (item.id === "axe") {
+      if (room8TableSold.axe) return;
+      if (player.coins < 5) {
+        if (purchaseDenyEl) { purchaseDenyEl.currentTime = 0; purchaseDenyEl.play().catch(() => {}); }
+        return;
+      }
+      player.coins -= 5;
+      room8TableSold.axe = true;
+      player.inventory.push("axe");
+      if (itemEquipEl) { itemEquipEl.currentTime = 0; itemEquipEl.play().catch(() => {}); }
+      updateHUD();
+      return;
+    }
+
+    if (item.id === "endlessWar") {
+      if (room8FirstWarSold) {
+        player.coins -= 80000000000;
+        room8PurchaseCaption = "Who needs social security?";
+        room8PurchaseCaptionUntil = gameFrameCount + CAPTION_FRAMES;
+        if (itemEquipEl) { itemEquipEl.currentTime = 0; itemEquipEl.play().catch(() => {}); }
+        updateHUD();
+        return;
+      }
+      const hadEnough = player.coins >= 50000000000;
+      player.coins -= 50000000000;
+      room8FirstWarSold = true;
+      player.inventory.push("endlessWar");
+      room8PurchaseCaption = hadEnough
+        ? "You sure you don't want two? History suggests one is rarely enough."
+        : "No problem. You've taken a loan from future generations";
+      room8PurchaseCaptionUntil = gameFrameCount + CAPTION_FRAMES;
+      if (itemEquipEl) { itemEquipEl.currentTime = 0; itemEquipEl.play().catch(() => {}); }
+      updateHUD();
+      return;
+    }
+
+    if (item.id === "worldPeace") {
+      room8PurchaseCaption = "I'm sorry that's out of stock.";
+      room8PurchaseCaptionUntil = gameFrameCount + CAPTION_FRAMES;
+      if (purchaseDenyEl) { purchaseDenyEl.currentTime = 0; purchaseDenyEl.play().catch(() => {}); }
+      return;
+    }
+  });
+}
+
+function drawRoom8Table() {
+  if (player.currentRoom !== SALESMAN_ROOM) return;
+
+  const tableLeft = ROOM8_TABLE_X - ROOM8_TABLE_W / 2;
+  ctx.fillStyle = "#3e2723";
+  ctx.fillRect(tableLeft, ROOM8_TABLE_TOP, ROOM8_TABLE_W, ROOM8_TABLE_H);
+  ctx.strokeStyle = "#5d4037";
+  ctx.lineWidth = 2;
+  ctx.strokeRect(tableLeft, ROOM8_TABLE_TOP, ROOM8_TABLE_W, ROOM8_TABLE_H);
+
+  const tableCenterY = ROOM_MARGIN_Y + ROOM_HEIGHT / 2;
+  const slotR = 24;
+
+  ROOM8_TABLE_ITEMS.forEach((item) => {
+    const x = ROOM8_TABLE_X;
+    const y = tableCenterY + item.offsetY;
+    const sold = item.id === "endlessWar" ? false : room8TableSold[item.id];
+
+    ctx.fillStyle = sold ? "#2d2d2d" : "#1a1a22";
+    ctx.beginPath();
+    ctx.arc(x, y, slotR, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = sold ? "#444" : "#5d4e37";
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    const drawW = 48;
+    const drawH = 48;
+    const drawLeft = x - drawW / 2;
+    const drawTop = y - drawH / 2;
+    let drewImage = false;
+    if (!sold) {
+      if (item.id === "axe" && room8AxeItemLoaded) {
+        ctx.drawImage(room8AxeItemImage, drawLeft, drawTop, drawW, drawH);
+        drewImage = true;
+      } else if (item.id === "endlessWar" && room8EndlessWarItemLoaded) {
+        ctx.drawImage(room8EndlessWarItemImage, drawLeft, drawTop, drawW, drawH);
+        drewImage = true;
+      } else if (item.id === "worldPeace" && room8WorldPeaceItemLoaded) {
+        ctx.drawImage(room8WorldPeaceItemImage, drawLeft, drawTop, drawW, drawH);
+        drewImage = true;
+      }
+    }
+    if (!drewImage && !sold) {
+      // Fallback when image not loaded yet
+      if (item.id === "axe") {
+        ctx.fillStyle = "#6d4c41";
+        ctx.strokeStyle = "#5d4037";
+        ctx.lineWidth = 2;
+        ctx.fillRect(x - 4, y - 18, 8, 28);
+        ctx.strokeRect(x - 4, y - 18, 8, 28);
+        ctx.beginPath();
+        ctx.moveTo(x - 14, y - 22);
+        ctx.lineTo(x + 14, y - 22);
+        ctx.lineTo(x + 10, y - 14);
+        ctx.lineTo(x - 10, y - 14);
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+      } else if (item.id === "endlessWar") {
+        ctx.fillStyle = "#8d6e63";
+        ctx.strokeStyle = "#5d4037";
+        ctx.beginPath();
+        ctx.ellipse(x, y - 4, 14, 6, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+        ctx.fillRect(x - 10, y - 4, 20, 16);
+        ctx.strokeRect(x - 10, y - 4, 20, 16);
+        ctx.fillStyle = "#cfd8dc";
+        ctx.font = "10px sans-serif";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillText("Endless War", x, y + 2);
+      } else if (item.id === "worldPeace") {
+        ctx.fillStyle = "#81c784";
+        ctx.beginPath();
+        ctx.arc(x, y - 4, 12, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = "#558b2f";
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+        ctx.fillStyle = "#cfd8dc";
+        ctx.font = "10px sans-serif";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillText("World Peace", x, y + 10);
+      }
+    }
+
+    ctx.fillStyle = sold ? "#aaaaaa" : "#ffffff";
+    ctx.font = "16px sans-serif";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    const costY = y + slotR + 14;
+    if (sold) {
+      ctx.fillText("SOLD", x, costY);
+    } else {
+      const priceText = item.id === "endlessWar"
+        ? (room8FirstWarSold ? "80 Billion coins" : "50 Billion coins")
+        : formatTablePrice(item.price);
+      ctx.fillText(priceText, x, costY);
+    }
+    ctx.font = "14px sans-serif";
+    ctx.fillStyle = sold ? "#888888" : "#ffffff";
+    if (item.id !== "endlessWar") ctx.fillText(item.name, x, costY + 22);
+  });
+}
+
+function formatTablePrice(n) {
+  if (n >= 1e9) return (n / 1e9).toFixed(0) + "B coins";
+  return String(n) + " coins";
+}
+
+function getSalesmanFollowTarget() {
+  const m = SALESMAN_ROOM_MARGIN;
+  let targetX = player.x - 40;
+  let targetY = player.y + 60;
+  targetX = Math.max(ROOM_MARGIN_X + m, Math.min(ROOM_MARGIN_X + ROOM_WIDTH - m, targetX));
+  targetY = Math.max(ROOM_MARGIN_Y + m, Math.min(ROOM_MARGIN_Y + ROOM_HEIGHT - m, targetY));
+  return { x: targetX, y: targetY };
+}
+
+function getRoom8HighlightCaption() {
+  const tableCenterY = ROOM_MARGIN_Y + ROOM_HEIGHT / 2;
+  let closestId = null;
+  let closestDist = ROOM8_TABLE_ITEM_R + 1;
+  ROOM8_TABLE_ITEMS.forEach((item) => {
+    const ix = ROOM8_TABLE_X;
+    const iy = tableCenterY + item.offsetY;
+    const dist = Math.hypot(player.x - ix, player.y - iy);
+    if (dist <= ROOM8_TABLE_ITEM_R && dist < closestDist) {
+      closestDist = dist;
+      closestId = item.id;
+    }
+  });
+  if (closestId === "axe") return "Simple. Reliable.";
+  if (closestId === "endlessWar") {
+    if (room8FirstWarSold) return ROOM8_WAR_RESTOCK_CAPTIONS[room8WarRestockHighlightIndex % 2];
+    if (!room8FirstWarSold) return ROOM8_ENDLESS_WAR_HIGHLIGHT_CAPTIONS[room8EndlessWarHighlightIndex % 2];
+    return null;
+  }
+  if (closestId === "worldPeace") return "I'm sorry that's out of stock.";
+  return null;
+}
+
+function updateSalesman() {
+  const wasInRoom8 = previousPlayerRoom === SALESMAN_ROOM;
+  if (player.currentRoom !== SALESMAN_ROOM) {
+    if (wasInRoom8 && room8FirstWarSold) hasLeftRoom8AfterWar = true;
+    wasInEndlessWarRangeLastFrame = false;
+    wasInRestockedWarRangeLastFrame = false;
+    previousPlayerRoom = player.currentRoom;
+    return;
+  }
+  if (!wasInRoom8 && hasLeftRoom8AfterWar && room8FirstWarSold) {
+    room8WarRestocked = true;
+  }
+  previousPlayerRoom = player.currentRoom;
+
+  const tableCenterY = ROOM_MARGIN_Y + ROOM_HEIGHT / 2;
+  const endlessWarY = tableCenterY + ROOM8_TABLE_ITEMS.find((i) => i.id === "endlessWar").offsetY;
+  const inEndlessWarItemRange = Math.hypot(player.x - ROOM8_TABLE_X, player.y - endlessWarY) <= ROOM8_TABLE_ITEM_R;
+  const inEndlessWarRange = !room8FirstWarSold && inEndlessWarItemRange;
+  const inRestockedWarRange = room8FirstWarSold && inEndlessWarItemRange;
+  if (wasInRestockedWarRangeLastFrame && !inRestockedWarRange) room8WarRestockHighlightIndex++;
+  wasInRestockedWarRangeLastFrame = inRestockedWarRange;
+  if (wasInEndlessWarRangeLastFrame && !inEndlessWarRange) room8EndlessWarHighlightIndex++;
+  wasInEndlessWarRangeLastFrame = inEndlessWarRange;
+
+  const salesmanVisible = salesman.state === "square" || salesman.state === "to_rest" || salesman.state === "following";
+  if (!salesmanVisible) return;
+
+  if (room8PurchaseCaption && gameFrameCount < room8PurchaseCaptionUntil) {
+    salesmanCaptionText = room8PurchaseCaption;
+    salesmanCaptionUntil = room8PurchaseCaptionUntil;
+  } else {
+    const highlight = getRoom8HighlightCaption();
+    if (highlight) {
+      salesmanCaptionText = highlight;
+      salesmanCaptionUntil = gameFrameCount + ROOM8_CAPTION_DURATION;
+    } else {
+      salesmanCaptionText = ROOM8_DEFAULT_CAPTION;
+      salesmanCaptionUntil = gameFrameCount + ROOM8_CAPTION_DURATION;
+    }
+  }
+
+  let target;
+  if (salesman.state === "square") {
+    target = SALESMAN_SQUARE[salesman.waypointIndex];
+  } else if (salesman.state === "to_rest") {
+    target = SALESMAN_REST;
+  } else if (salesman.state === "following") {
+    target = getSalesmanFollowTarget();
+  } else {
+    target = null;
+  }
+
+  if (target) {
+    const dx = target.x - salesman.x;
+    const dy = target.y - salesman.y;
+    const dist = Math.hypot(dx, dy);
+    if (dist <= SALESMAN_WAYPOINT_R) {
+      if (salesman.state === "square") {
+        if (salesman.waypointIndex === 3) {
+          salesman.state = "to_rest";
+        } else {
+          salesman.waypointIndex++;
+        }
+      } else if (salesman.state === "to_rest") {
+        salesman.state = "following";
+        salesmanCaptionNextAt = gameFrameCount;
+      }
+    } else {
+      const move = Math.min(SALESMAN_SPEED, dist);
+      salesman.x += (dx / dist) * move;
+      salesman.y += (dy / dist) * move;
+      salesman.facingAngle = Math.atan2(dy, dx);
+      if (salesman.state === "to_rest" || salesman.state === "following") {
+        const m = SALESMAN_ROOM_MARGIN;
+        salesman.x = Math.max(ROOM_MARGIN_X + m, Math.min(ROOM_MARGIN_X + ROOM_WIDTH - m, salesman.x));
+        salesman.y = Math.max(ROOM_MARGIN_Y + m, Math.min(ROOM_MARGIN_Y + ROOM_HEIGHT - m, salesman.y));
+      }
+      salesman.walkFrameCounter++;
+      if (salesman.walkFrameCounter >= 10) {
+        salesman.walkFrameCounter = 0;
+        salesman.walkFrameIndex = (salesman.walkFrameIndex + 1) % 4;
+      }
+    }
+  }
+  if (salesman.state === "following") {
+    salesman.facingAngle = Math.atan2(
+      player.y - salesman.y,
+      player.x - salesman.x
+    );
+  }
+  if (player.currentRoom === SALESMAN_ROOM) {
+    const m = SALESMAN_ROOM_MARGIN;
+    separateNpcFromPlayer(
+      salesman,
+      SALESMAN_SIZE / 2,
+      ROOM_MARGIN_X + m,
+      ROOM_MARGIN_X + ROOM_WIDTH - m,
+      ROOM_MARGIN_Y + m,
+      ROOM_MARGIN_Y + ROOM_HEIGHT - m
+    );
+  }
+}
+
+function drawSalesman() {
+  if (player.currentRoom !== SALESMAN_ROOM || !salesmanLoaded) return;
+  const row = shopkeeperFacingAngleToRow(salesman.facingAngle);
+  const moving =
+    salesman.state === "square" ||
+    salesman.state === "to_rest" ||
+    salesman.state === "following";
+  const col = moving ? [0, 2, 3, 2][salesman.walkFrameIndex % 4] : 1;
+  const sx = col * salesmanFrameWidth;
+  const sy = row * salesmanFrameHeight;
+  const w = SALESMAN_SIZE;
+  const scale = w / salesmanFrameWidth;
+  const h = salesmanFrameHeight * scale;
+  ctx.drawImage(
+    salesmanImage,
+    sx,
+    sy,
+    salesmanFrameWidth,
+    salesmanFrameHeight,
+    salesman.x - w / 2,
+    salesman.y - h / 2,
+    w,
+    h
+  );
+}
+
+function wrapSalesmanCaption(text, maxWidth) {
+  ctx.font = "14px sans-serif";
+  const words = text.split(/\s+/);
+  const lines = [];
+  let current = "";
+  for (let i = 0; i < words.length; i++) {
+    const trial = current ? current + " " + words[i] : words[i];
+    if (ctx.measureText(trial).width <= maxWidth) {
+      current = trial;
+    } else {
+      if (current) lines.push(current);
+      current = words[i];
+    }
+  }
+  if (current) lines.push(current);
+  return lines;
+}
+
+function drawSalesmanCaption() {
+  if (player.currentRoom !== SALESMAN_ROOM) return;
+  if (gameFrameCount >= salesmanCaptionUntil || !salesmanCaptionText) return;
+
+  const lineHeight = 18;
+  const padding = 12;
+  const maxBubbleW = 220;
+  const lines = wrapSalesmanCaption(salesmanCaptionText, maxBubbleW - padding * 2);
+  const bubbleW = Math.min(maxBubbleW, Math.max(...lines.map((l) => ctx.measureText(l).width)) + padding * 2);
+  const bubbleH = lines.length * lineHeight + padding * 2;
+  const r = 8;
+
+  const headY = salesman.y - SALESMAN_SIZE / 2;
+  const gap = 10;
+  let bx = (salesman.x - SALESMAN_SIZE / 2 - gap) - bubbleW;
+  let by = headY - bubbleH / 2;
+  bx = Math.max(ROOM_MARGIN_X + CAPTION_MARGIN, Math.min(ROOM_MARGIN_X + ROOM_WIDTH - bubbleW - CAPTION_MARGIN, bx));
+  by = Math.max(ROOM_MARGIN_Y + CAPTION_MARGIN, Math.min(ROOM_MARGIN_Y + ROOM_HEIGHT - bubbleH - CAPTION_MARGIN, by));
+
+  ctx.fillStyle = "rgba(30,30,40,0.95)";
+  ctx.strokeStyle = "#607d8b";
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(bx + r, by);
+  ctx.lineTo(bx + bubbleW - r, by);
+  ctx.quadraticCurveTo(bx + bubbleW, by, bx + bubbleW, by + r);
+  ctx.lineTo(bx + bubbleW, by + bubbleH - r);
+  ctx.quadraticCurveTo(bx + bubbleW, by + bubbleH, bx + bubbleW - r, by + bubbleH);
+  ctx.lineTo(bx + r, by + bubbleH);
+  ctx.quadraticCurveTo(bx, by + bubbleH, bx, by + bubbleH - r);
+  ctx.lineTo(bx, by + r);
+  ctx.quadraticCurveTo(bx, by, bx + r, by);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+
+  ctx.fillStyle = "#eceff1";
+  ctx.font = "14px sans-serif";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  const textCenterX = bx + bubbleW / 2;
+  const firstLineY = by + padding + lineHeight / 2;
+  lines.forEach((line, i) => {
+    ctx.fillText(line, textCenterX, firstLineY + i * lineHeight);
+  });
+}
+
+function getAblsFollowTarget() {
+  let targetX = player.x - 50;
+  const targetY = player.y + 40;
+  targetX = Math.max(ABLS_RIGHT_MIN_X, Math.min(ROOM_MARGIN_X + ROOM_WIDTH - 40, targetX));
+  return { x: targetX, y: targetY };
+}
+
+function updateAbls() {
+  if (player.currentRoom !== ROOM9_ABLS_ROOM) return;
+  const target = getAblsFollowTarget();
+  const dx = target.x - abls.x;
+  const dy = target.y - abls.y;
+  const dist = Math.hypot(dx, dy);
+  if (dist > 4) {
+    const move = Math.min(ABLS_SPEED, dist);
+    abls.x += (dx / dist) * move;
+    abls.y += (dy / dist) * move;
+    abls.facingAngle = Math.atan2(dy, dx);
+    abls.x = Math.max(ABLS_RIGHT_MIN_X, Math.min(ROOM_MARGIN_X + ROOM_WIDTH - 40, abls.x));
+    abls.y = Math.max(ROOM_MARGIN_Y + 40, Math.min(ROOM_MARGIN_Y + ROOM_HEIGHT - 40, abls.y));
+    abls.walkFrameCounter++;
+    if (abls.walkFrameCounter >= 10) {
+      abls.walkFrameCounter = 0;
+      abls.walkFrameIndex = (abls.walkFrameIndex + 1) % 4;
+    }
+  }
+  const toPlayer = Math.hypot(player.x - abls.x, player.y - abls.y);
+  if (!ablsCoinGiven && toPlayer <= ABLS_GIFT_R) {
+    ablsCoinGiven = true;
+    player.coins += 5;
+    ablsCaptionText = ABLS_CAPTION;
+    ablsCaptionUntil = gameFrameCount + ABLS_CAPTION_DURATION;
+    if (itemEquipEl) { itemEquipEl.currentTime = 0; itemEquipEl.play().catch(() => {}); }
+    updateHUD();
+  }
+  if (ablsCaptionChamber2NextAt === 0) ablsCaptionChamber2NextAt = gameFrameCount + ABLS_CHAMBER2_INTERVAL;
+  if (gameFrameCount >= ablsCaptionChamber2NextAt && gameFrameCount >= ablsCaptionUntil) {
+    ablsCaptionChamber2NextAt = gameFrameCount + ABLS_CHAMBER2_INTERVAL;
+    ablsCaptionText = ABLS_CAPTION_CHAMBER2;
+    ablsCaptionUntil = gameFrameCount + ABLS_CAPTION_DURATION;
+  }
+}
+
+function drawAbls() {
+  if (player.currentRoom !== ROOM9_ABLS_ROOM || !ablsLoaded) return;
+  const row = shopkeeperFacingAngleToRow(abls.facingAngle);
+  const col = [0, 2, 3, 2][abls.walkFrameIndex % 4];
+  const sx = col * ablsFrameWidth;
+  const sy = row * ablsFrameHeight;
+  const w = ABLS_SIZE;
+  const scale = w / ablsFrameWidth;
+  const h = ablsFrameHeight * scale;
+  ctx.drawImage(
+    ablsImage,
+    sx,
+    sy,
+    ablsFrameWidth,
+    ablsFrameHeight,
+    abls.x - w / 2,
+    abls.y - h / 2,
+    w,
+    h
+  );
+}
+
+function drawAblsCaption() {
+  if (player.currentRoom !== ROOM9_ABLS_ROOM) return;
+  if (gameFrameCount >= ablsCaptionUntil || !ablsCaptionText) return;
+
+  const lineHeight = 18;
+  const padding = 12;
+  const maxBubbleW = 240;
+  const lines = wrapSalesmanCaption(ablsCaptionText, maxBubbleW - padding * 2);
+  const bubbleW = Math.min(maxBubbleW, Math.max(...lines.map((l) => ctx.measureText(l).width)) + padding * 2);
+  const bubbleH = lines.length * lineHeight + padding * 2;
+  const r = 8;
+
+  const headY = abls.y - ABLS_SIZE / 2;
+  const gap = 10;
+  let bx = (abls.x - ABLS_SIZE / 2 - gap) - bubbleW;
+  let by = headY - bubbleH / 2;
+  bx = Math.max(ROOM_MARGIN_X + CAPTION_MARGIN, Math.min(ROOM_MARGIN_X + ROOM_WIDTH - bubbleW - CAPTION_MARGIN, bx));
+  by = Math.max(ROOM_MARGIN_Y + CAPTION_MARGIN, Math.min(ROOM_MARGIN_Y + ROOM_HEIGHT - bubbleH - CAPTION_MARGIN, by));
+
+  ctx.fillStyle = "rgba(30,30,40,0.95)";
+  ctx.strokeStyle = "#607d8b";
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(bx + r, by);
+  ctx.lineTo(bx + bubbleW - r, by);
+  ctx.quadraticCurveTo(bx + bubbleW, by, bx + bubbleW, by + r);
+  ctx.lineTo(bx + bubbleW, by + bubbleH - r);
+  ctx.quadraticCurveTo(bx + bubbleW, by + bubbleH, bx + bubbleW - r, by + bubbleH);
+  ctx.lineTo(bx + r, by + bubbleH);
+  ctx.quadraticCurveTo(bx, by + bubbleH, bx, by + bubbleH - r);
+  ctx.lineTo(bx, by + r);
+  ctx.quadraticCurveTo(bx, by, bx + r, by);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+
+  ctx.fillStyle = "#eceff1";
+  ctx.font = "14px sans-serif";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  const textCenterX = bx + bubbleW / 2;
+  const firstLineY = by + padding + lineHeight / 2;
+  lines.forEach((line, i) => {
+    ctx.fillText(line, textCenterX, firstLineY + i * lineHeight);
+  });
 }
 
 function drawSecretRoomShop() {
@@ -2832,23 +4180,33 @@ function drawSecretRoomShop() {
     ctx.stroke();
 
     if (id === "shield") {
-      // Brown pentagon with two longer (side) edges — flipped upside down
-      ctx.fillStyle = sold ? "#4a3728" : "#6d4c41";
-      ctx.strokeStyle = sold ? "#3e2723" : "#5d4037";
-      ctx.lineWidth = 2;
-      const top = y - 22;
-      const bottom = y + 22;
-      const upperSide = 12;
-      const lowerSide = 15;
-      ctx.beginPath();
-      ctx.moveTo(x, bottom);                    // point at bottom
-      ctx.lineTo(x + upperSide, y + 6);        // right shoulder
-      ctx.lineTo(x + lowerSide, top + 3);      // long edge to upper-right corner
-      ctx.lineTo(x, top);                      // point at top
-      ctx.lineTo(x - lowerSide, top + 3);      // long edge to upper-left corner
-      ctx.closePath();
-      ctx.fill();
-      ctx.stroke();
+      if (sold) {
+        ctx.fillStyle = "rgba(80,80,80,0.6)";
+        ctx.beginPath();
+        ctx.arc(x, y, slotR - 4, 0, Math.PI * 2);
+        ctx.fill();
+      } else if (secretRoomShieldLoaded) {
+        const drawW = 56;
+        const drawH = 56;
+        ctx.drawImage(secretRoomShieldImage, x - drawW / 2, y - drawH / 2, drawW, drawH);
+      } else {
+        ctx.fillStyle = "#6d4c41";
+        ctx.strokeStyle = "#5d4037";
+        ctx.lineWidth = 2;
+        const top = y - 22;
+        const bottom = y + 22;
+        const upperSide = 12;
+        const lowerSide = 15;
+        ctx.beginPath();
+        ctx.moveTo(x, bottom);
+        ctx.lineTo(x + upperSide, y + 6);
+        ctx.lineTo(x + lowerSide, top + 3);
+        ctx.lineTo(x, top);
+        ctx.lineTo(x - lowerSide, top + 3);
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+      }
     } else if (id === "key") {
       // Old-fashioned key with loop (circular bow) and bit
       ctx.fillStyle = sold ? "#555" : "#b8860b";
@@ -3004,31 +4362,71 @@ function drawPlayer() {
     player.draw();
   }
 
-  // sword (visual) when swinging: tapered blade (broad base, narrow tip) sweeping 180° in front of player
-  if (player.weapon === WEAPON_SWORD && player.swordSwingTimer > 0) {
+  // melee: sword = extend then retract in facing direction; axe = 180° sweep
+  const inv = player.inventory || [];
+  const meleeIsAxe = selectedStripIndex >= 2 && inv[selectedStripIndex - 2] === "axe";
+  if ((player.weapon === WEAPON_SWORD || meleeIsAxe) && player.swordSwingTimer > 0) {
     const t = 1 - player.swordSwingTimer / SWORD_SWING_DURATION; // 0 → 1 over swing
-    const startAngle = player.facingAngle - SWORD_ARC; // start on one side
-    const endAngle = player.facingAngle + SWORD_ARC;   // end on the other side
-    const swingAngle = startAngle + (endAngle - startAngle) * t;
-
-    const bladeLength = SWORD_RANGE;
-    const baseHalfThick = 10;  // broader base near player
-    const tipHalfThick = 2;    // tapers to narrow point
+    const startOffset = player.half;
 
     ctx.save();
     ctx.translate(player.x, player.y);
-    ctx.rotate(swingAngle);
 
-    const startOffset = player.half;
-    const tipX = startOffset + bladeLength;
-    ctx.fillStyle = "rgba(255,255,255,0.95)";
-    ctx.beginPath();
-    ctx.moveTo(startOffset, -baseHalfThick);   // base left
-    ctx.lineTo(startOffset, baseHalfThick);    // base right
-    ctx.lineTo(tipX, tipHalfThick);            // tip right (narrower)
-    ctx.lineTo(tipX, -tipHalfThick);            // tip left
-    ctx.closePath();
-    ctx.fill();
+    if (meleeIsAxe) {
+      // Axe: 180° arc; handle at body, axe head at tip
+      const startAngle = player.facingAngle - SWORD_ARC;
+      const endAngle = player.facingAngle + SWORD_ARC;
+      const swingAngle = startAngle + (endAngle - startAngle) * t;
+      ctx.rotate(swingAngle);
+      const bladeLength = AXE_RANGE;
+      const handleHalfThick = 3;
+      const headHalfThick = 12;
+      const tipX = startOffset + bladeLength;
+      ctx.fillStyle = "rgba(139, 90, 43, 0.98)";
+      ctx.fillRect(startOffset, -handleHalfThick, bladeLength * 0.5, handleHalfThick * 2);
+      ctx.fillStyle = "rgba(80, 80, 85, 0.98)";
+      ctx.beginPath();
+      ctx.moveTo(startOffset + bladeLength * 0.45, -handleHalfThick);
+      ctx.lineTo(startOffset + bladeLength * 0.45, handleHalfThick);
+      ctx.lineTo(tipX, headHalfThick);
+      ctx.lineTo(tipX, -headHalfThick);
+      ctx.closePath();
+      ctx.fill();
+    } else {
+      // Sword: 3D-style arc — left → center → right with perspective scale + tilt + motion blur
+      const bladeLength = SWORD_RANGE;
+      const baseHalfThick = 4;
+      const tipHalfThick = 1;
+      // Arc: start behind left (-90°), through center (0°), finish right (+90°) in player-local space
+      const swingAngle = player.facingAngle - Math.PI / 2 + t * Math.PI;
+      // Scale simulates depth: smallest at ends (far), largest at center (closest to camera)
+      const depthScale = 0.62 + 0.38 * Math.sin(t * Math.PI);
+      // Tilt simulates rotation in 3D: angled back at start, flat at center, angled forward at end
+      const bladeTilt = (t - 0.5) * 1.0; // radians; width scaled by cos(tilt) for perspective
+      const tiltScaleY = Math.cos(bladeTilt);
+
+      function drawSwordBlade(angleOffset, alpha) {
+        ctx.save();
+        ctx.rotate(swingAngle + angleOffset);
+        ctx.scale(depthScale, depthScale * tiltScaleY);
+        ctx.globalAlpha = alpha;
+        ctx.fillStyle = "rgba(255,255,255,0.95)";
+        ctx.beginPath();
+        ctx.moveTo(0, -baseHalfThick);
+        ctx.lineTo(0, baseHalfThick);
+        ctx.lineTo(bladeLength, tipHalfThick);
+        ctx.lineTo(bladeLength, -tipHalfThick);
+        ctx.closePath();
+        ctx.fill();
+        ctx.restore();
+      }
+
+      // Motion blur: trailing ghosts behind the blade (opposite to swing direction)
+      const blurStep = 0.06;
+      drawSwordBlade(-blurStep * 2, 0.06);
+      drawSwordBlade(-blurStep, 0.12);
+      drawSwordBlade(0, 1);
+    }
 
     ctx.restore();
   }
@@ -3036,26 +4434,34 @@ function drawPlayer() {
 
 function drawPlayerShield() {
   if (!player.hasShield || player.shieldHp <= 0) return;
-  const dx = Math.cos(player.facingAngle) * 28;
-  const dy = Math.sin(player.facingAngle) * 28;
+  if (heroAnim.dir !== HERO_DIR_DOWN) return;
+
+  const offset = 32;
+  const dx = Math.cos(player.facingAngle) * offset;
+  const dy = Math.sin(player.facingAngle) * offset;
   const x = player.x + dx;
   const y = player.y + dy;
+  const shieldW = 44;
+  const shieldH = 44;
   ctx.save();
   ctx.translate(x, y);
   ctx.rotate(player.facingAngle);
-  // Brown pentagon: point toward player (negative x), flat part forward (positive x)
-  ctx.fillStyle = "#6d4c41";
-  ctx.strokeStyle = "#5d4037";
-  ctx.lineWidth = 1.5;
-  ctx.beginPath();
-  ctx.moveTo(-10, 0);   // point (toward player)
-  ctx.lineTo(0, 5);    // right shoulder
-  ctx.lineTo(8, 2);    // right corner
-  ctx.lineTo(8, -2);   // front
-  ctx.lineTo(0, -5);   // left shoulder
-  ctx.closePath();
-  ctx.fill();
-  ctx.stroke();
+  if (shieldArmedLoaded) {
+    ctx.drawImage(shieldArmedImage, -shieldW / 2, -shieldH / 2, shieldW, shieldH);
+  } else {
+    ctx.fillStyle = "#6d4c41";
+    ctx.strokeStyle = "#5d4037";
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(-10, 0);
+    ctx.lineTo(0, 5);
+    ctx.lineTo(8, 2);
+    ctx.lineTo(8, -2);
+    ctx.lineTo(0, -5);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+  }
   ctx.restore();
 }
 
@@ -3214,17 +4620,14 @@ function drawProjectiles() {
 }
 
 function drawUIHints() {
-  ctx.fillStyle = "rgba(255,255,255,0.7)";
   ctx.font = "14px sans-serif";
-  ctx.textAlign = "left";
-  ctx.fillText(
-    "Move: Arrow keys | Attack: Space | Switch weapon: R",
-    ROOM_MARGIN_X + 12,
-    ROOM_MARGIN_Y + ROOM_HEIGHT - 12
-  );
   if (player.currentRoom === HIDDEN_ROOM) {
     ctx.textAlign = "center";
     ctx.fillText("Press E near an item to purchase", SHOP_CENTER_X, ROOM_MARGIN_Y + 24);
+  }
+  if (player.currentRoom === SALESMAN_ROOM) {
+    ctx.textAlign = "center";
+    ctx.fillText("Press E near an item to purchase", ROOM_MARGIN_X + ROOM_WIDTH / 2, ROOM_MARGIN_Y + 24);
   }
 }
 
@@ -3240,11 +4643,13 @@ function drawSealedDoorCaption() {
   const bubbleW = maxW + padding * 2;
   const bubbleH = lines.length * lineHeight + padding * 2;
 
-  const bx = ROOM_MARGIN_X + ROOM_WIDTH / 2;
-  const by = ROOM_MARGIN_Y + ROOM_HEIGHT / 2 - bubbleH / 2;
+  let x = ROOM_MARGIN_X + ROOM_WIDTH / 2 - bubbleW / 2;
+  let by = ROOM_MARGIN_Y + ROOM_HEIGHT / 2 - bubbleH / 2;
+  x = Math.max(ROOM_MARGIN_X + CAPTION_MARGIN, Math.min(ROOM_MARGIN_X + ROOM_WIDTH - bubbleW - CAPTION_MARGIN, x));
+  by = Math.max(ROOM_MARGIN_Y + CAPTION_MARGIN, Math.min(ROOM_MARGIN_Y + ROOM_HEIGHT - bubbleH - CAPTION_MARGIN, by));
 
   const r = 8;
-  const x = bx - bubbleW / 2;
+  const bx = x + bubbleW / 2;
   ctx.fillStyle = "rgba(255, 255, 255, 0.95)";
   ctx.strokeStyle = "#78909c";
   ctx.lineWidth = 2;
@@ -3494,24 +4899,46 @@ function gameLoop() {
     updateCoinPickups();
     updateExplosions();
     updateDeathScatter();
+    updateBlockShatter();
     checkWinCondition();
     updateRoomTransition();
     updateCavernDoorAndSequence();
     updateRoom2TrapDoorAndSequence();
     updateShopkeeper();
+    updateSalesman();
+    updateAbls();
+    updateApril();
+    updateRonaldsmom();
   }
 
   ctx.save();
   ctx.translate(cameraOffsetX, cameraOffsetY);
   drawRoomBackground();
   drawObstacles();
+  drawBlockShatter();
   if (player.currentRoom === 2) drawRoom2SecretElements();
   if (player.currentRoom === 9) drawRoom9CavernDoor();
   if (cavernSequence === "descending" || cavernSequence === "ascending" || (player.currentRoom === 9 && room9DoorState === "open")) drawCavernSteps();
+  if (player.currentRoom === ROOM9_ABLS_ROOM) {
+    drawAbls();
+    drawAblsCaption();
+  }
   if (player.currentRoom === HIDDEN_ROOM) {
     drawShopkeeper();
     drawShopkeeperCaption();
     drawSecretRoomShop();
+  }
+  if (player.currentRoom === SALESMAN_ROOM) {
+    drawRoom8Table();
+    drawSalesman();
+    drawSalesmanCaption();
+  }
+  if (player.currentRoom === SECRET_ROOM_2) {
+    drawRoom11Table();
+    drawApril();
+    drawAprilCaption();
+    drawRonaldsmom();
+    drawRonaldsmomCaption();
   }
   drawEnemies();
   drawHeartPickups();
