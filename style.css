@@ -226,6 +226,18 @@ canvas {
   z-index: 10;
 }
 
+.overlay.overlay-victory {
+  background: transparent;
+  justify-content: flex-end;
+  align-items: center;
+  padding-bottom: 48px;
+}
+
+.overlay.overlay-victory #message-text {
+  margin-bottom: 20px;
+  font-size: 22px;
+}
+
 .overlay.hidden {
   display: none;
 }

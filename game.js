@@ -24,6 +24,23 @@ const trapDoorOpenEl = document.getElementById("trapdoor-open");
 const caveDoorOpenEl = document.getElementById("cave-door-open");
 const characterSelectClickEl = document.getElementById("character-select-click");
 const purchaseDenyEl = document.getElementById("purchase-deny");
+
+let audioUnlocked = false;
+function unlockAudio() {
+  if (audioUnlocked) return;
+  audioUnlocked = true;
+  const el = characterSelectClickEl || gameMusicEl;
+  if (el) {
+    const prevVolume = el.volume;
+    el.volume = 0;
+    el.currentTime = 0;
+    el.play().then(() => {
+      el.pause();
+      el.volume = prevVolume;
+    }).catch(() => {});
+  }
+}
+
 const ROOM_WIDTH = 640;
 const ROOM_HEIGHT = 480;
 const MINIMAP_PANEL_WIDTH = 140;
@@ -141,16 +158,63 @@ alanaHeroImage.onload = () => {
   alanaHeroLoaded = true;
 };
 
-// Which hero sheet to draw: 'hero' | 'rayan' | 'ellinor' | 'alana'
+// Ronald, Yusuf, Janice, Sohail — 4×4 layout: row 0 = towards player (down), row 1 = away (up), row 2 = left, row 3 = right
+const ronaldHeroImage = new Image();
+ronaldHeroImage.src = "ronald_sprite.png";
+let ronaldHeroLoaded = false;
+let ronaldHeroFrameWidth = 0;
+let ronaldHeroFrameHeight = 0;
+ronaldHeroImage.onload = () => {
+  ronaldHeroFrameWidth = ronaldHeroImage.width / HERO_SPRITE_COLS;
+  ronaldHeroFrameHeight = ronaldHeroImage.height / HERO_SPRITE_ROWS;
+  ronaldHeroLoaded = true;
+};
+
+const yusufHeroImage = new Image();
+yusufHeroImage.src = "yusuf_sprite.png";
+let yusufHeroLoaded = false;
+let yusufHeroFrameWidth = 0;
+let yusufHeroFrameHeight = 0;
+yusufHeroImage.onload = () => {
+  yusufHeroFrameWidth = yusufHeroImage.width / HERO_SPRITE_COLS;
+  yusufHeroFrameHeight = yusufHeroImage.height / HERO_SPRITE_ROWS;
+  yusufHeroLoaded = true;
+};
+
+const janiceHeroImage = new Image();
+janiceHeroImage.src = "janice_sprite.png";
+let janiceHeroLoaded = false;
+let janiceHeroFrameWidth = 0;
+let janiceHeroFrameHeight = 0;
+janiceHeroImage.onload = () => {
+  janiceHeroFrameWidth = janiceHeroImage.width / HERO_SPRITE_COLS;
+  janiceHeroFrameHeight = janiceHeroImage.height / HERO_SPRITE_ROWS;
+  janiceHeroLoaded = true;
+};
+
+const sohailHeroImage = new Image();
+sohailHeroImage.src = "sohail_sprite.png";
+let sohailHeroLoaded = false;
+let sohailHeroFrameWidth = 0;
+let sohailHeroFrameHeight = 0;
+sohailHeroImage.onload = () => {
+  sohailHeroFrameWidth = sohailHeroImage.width / HERO_SPRITE_COLS;
+  sohailHeroFrameHeight = sohailHeroImage.height / HERO_SPRITE_ROWS;
+  sohailHeroLoaded = true;
+};
+
+// Which hero sheet to draw: 'hero' | 'rayan' | 'ellinor' | 'alana' | 'ronald' | 'yusuf' | 'janice' | 'sohail'
 let currentHeroSheet = "hero";
 
-// Character select at start: 0 = Alana, 1 = Rayan, 2 = Ellinor
+// Character select: Alana, Rayan, Ellinor, Ronald, Yusuf, Janice, Sohail (same 4×4 sprite layout)
 let characterSelectActive = true;
 let selectedCharacterIndex = 0;
 const CHARACTER_OPTIONS = [
   { id: "alana", name: "ALANA" },
   { id: "rayan", name: "RAYAN" },
   { id: "ellinor", name: "ELLINOR" },
+  { id: "yusuf", name: "YUSUF" },
+  { id: "ronald", name: "RONALD" },
 ];
 
 const shopkeeperImage = new Image();
@@ -319,7 +383,7 @@ let shopkeeper = {
 
 const SHOPKEEPER_CAPTION_PHRASES = [
   "What did I miss?",
-  "Can I help you with anything?",
+  "My name is Kosta and I established this shop in homage to my Greek ancestors. You are welcome here",
   "Feel free to look.",
   "Would you be interested in selling me gold for half the market price?",
 ];
@@ -564,7 +628,8 @@ const CAVERN_DESCEND_FRAMES = 90;
 const CAVERN_FADE_FRAMES = 35;
 
 const ROOM9_ABLS_ROOM = 9;
-const ABLS_RIGHT_MIN_X = ROOM_MARGIN_X + ROOM_WIDTH * 0.55;
+const ABLS_RIGHT_MIN_X = ROOM_MARGIN_X + ROOM_WIDTH * 0.5;
+const ABLS_TOP_MAX_Y = ROOM_MARGIN_Y + ROOM_HEIGHT / 2 - 24;
 const ablsImage = new Image();
 ablsImage.src = "abls_sprite.png";
 let ablsLoaded = false;
@@ -595,6 +660,90 @@ let ablsCaptionUntil = 0;
 let ablsCaptionText = "";
 let ablsCaptionChamber2NextAt = 0;
 let ablsCoinGiven = false;
+
+const JANICE_NPC_SIZE = 48;
+const ROOM5_JANICE = 5;
+const JANICE_NPC_SPEED = 1.0;
+const JANICE_LEFT_MAX_X = ROOM_MARGIN_X + ROOM_WIDTH / 2 - 24;
+const JANICE_TOP_MIN_Y = ROOM_MARGIN_Y + ROOM_HEIGHT / 2 + 24;
+const JANICE_CAPTIONS = [
+  "Por favor, acepta este mole de pollo",
+  "Es delicioso",
+  "Te dará 5 puntos de salud",
+];
+const JANICE_CAPTION_DURATION = 240;  // 4 seconds at 60fps
+const JANICE_CAPTION_INTERVAL = 240;  // change every 4 seconds
+const ROOM5_TABLE_X = ROOM_MARGIN_X + 160;
+const ROOM5_TABLE_Y = ROOM_MARGIN_Y + ROOM_HEIGHT - 70;
+const ROOM5_TABLE_W = 90;
+const ROOM5_TABLE_H = 20;
+const ROOM5_POT_X = ROOM5_TABLE_X;
+const ROOM5_POT_Y = ROOM5_TABLE_Y - 14;
+const ROOM5_POT_R = 36;
+const ROOM5_POT_HP = 5;
+const ROOM5_POT_DRAW_W = 44;
+const ROOM5_POT_DRAW_H = 44;
+const moleItemImage = new Image();
+moleItemImage.src = "mole_item.png";
+let moleItemLoaded = false;
+moleItemImage.onload = () => { moleItemLoaded = true; };
+let janiceNpc = {
+  x: ROOM_MARGIN_X + ROOM_WIDTH * 0.25,
+  y: ROOM_MARGIN_Y + ROOM_HEIGHT - 80,
+  facingAngle: 0,
+  walkFrameIndex: 0,
+  walkFrameCounter: 0,
+};
+let janiceCaptionText = "";
+let janiceCaptionUntil = 0;
+let janiceCaptionNextAt = 0;
+let janiceCaptionIndex = 0;
+let janicePotUsed = false;
+
+let lineupSequence = "none"; // "none" | "walk_to_center" | "caption" | "entering" | "lined_up" | "sohail_walk_down" | "sohail_caption" | "vlad_caption"
+const LINEUP_SPEED = 2.8;
+const LINEUP_ARRIVED_R = 8;
+let lineupTargets = []; // { x, y } per character
+let bossVictorySequenceStarted = false;
+const BOSS_VICTORY_CAPTION = "CONGRATULATIONS ON 100 DAYS ALANA!";
+let bossVictoryCaptionTypedLen = 0;
+let bossVictoryCaptionFrame = 0;
+const BOSS_VICTORY_CAPTION_CHAR_DELAY = 4;
+const BOSS_VICTORY_CAPTION_HOLD_FRAMES = 90;
+let bossVictoryLinedUpAt = 0;
+const BOSS_VICTORY_END_DELAY = 180;
+
+const SOHAIL_CREDITS_CAPTIONS = [
+  "Hi! My name is Sohail Ahmed and I created this game",
+  "I hope you enjoyed this game and all of its hidden Easter eggs!",
+  "Did you manage to push that block in map 2? You might have found some delicious surprises!",
+];
+const SOHAIL_BOTTOM_TARGET_Y_OFFSET = 70;
+const SOHAIL_CREDITS_CAPTION_CHAR_DELAY = 3;
+const SOHAIL_CREDITS_CAPTION_HOLD_FRAMES = 150;
+let sohailCreditsCaptionIndex = 0;
+let sohailCreditsCaptionTypedLen = 0;
+let sohailCreditsCaptionFrame = 0;
+
+const VLAD_END_CAPTION = "pssst...try to buy the most expensive item and see what happens...";
+const VLAD_CORNER_X = ROOM_MARGIN_X + ROOM_WIDTH - 70;
+const VLAD_CORNER_Y = ROOM_MARGIN_Y + ROOM_HEIGHT - 70;
+const VLAD_OFF_SCREEN_X = ROOM_MARGIN_X - 100;
+const VLAD_OFF_ARRIVED_X = ROOM_MARGIN_X - 60;
+let vladCaptionPhase = "to_corner"; // "to_corner" | "off_screen"
+
+const END_SEQUENCE_BORDER_HUE_SPEED = 0.15; // degrees per frame for gradual shift (~40 sec full cycle)
+const END_SEQUENCE_CAPTION_HUE_SPEED = 0.2; // degrees per frame for caption spectrum (~30 sec full cycle)
+
+function isEndSequenceFlashing() {
+  return bossVictorySequenceStarted && (lineupSequence === "entering" || lineupSequence === "lined_up" || lineupSequence === "sohail_walk_down" || lineupSequence === "sohail_caption" || lineupSequence === "vlad_caption");
+}
+
+// Boss victory lineup: 12 characters by sprite name; half from top, half from bottom; two rows facing viewer
+const LINEUP_ROSTER_KEYS = ["ronald", "yusuf", "janice", "sohail", "april", "abls", "ellinor", "kosta", "rayan", "ronaldsmom", "vlad", "alana"];
+const LINEUP_CHAR_SIZE = 48;
+const LINEUP_WALK_FRAME_INTERVAL = 10;
+let lineupRoster = []; // { key, x, y, targetX, targetY, walkFrameIndex, walkFrameCounter }
 
 let keys = {};
 
@@ -1174,6 +1323,7 @@ let cameraOffsetY = 0;
 let sealedDoorCaption = false; // true when player is at a sealed (boss) door
 let bossTypedSequence = "";   // type "boss" to warp to boss chamber
 let secretRoom2TypedSequence = "";  // type "secret room 2" to warp to second secret room
+let janiceTypedSequence = "";  // type "janice" to warp to room 5 with all enemies killed
 // Room 9 cavern door: closed -> swinging -> open; then descending sequence to hidden room
 let room9DoorState = "closed"; // 'closed' | 'swinging' | 'open'
 let room9DoorSwingProgress = 0;
@@ -1382,6 +1532,27 @@ function resetGame() {
   ablsCaptionText = "";
   ablsCaptionChamber2NextAt = 0;
   ablsCoinGiven = false;
+  janiceNpc.x = ROOM_MARGIN_X + ROOM_WIDTH * 0.25;
+  janiceNpc.y = ROOM_MARGIN_Y + ROOM_HEIGHT - 80;
+  janiceNpc.facingAngle = 0;
+  janiceNpc.walkFrameIndex = 0;
+  janiceNpc.walkFrameCounter = 0;
+  janiceCaptionText = "";
+  janiceCaptionUntil = 0;
+  janiceCaptionNextAt = 0;
+  janiceCaptionIndex = 0;
+  janicePotUsed = false;
+  lineupSequence = "none";
+  lineupTargets = [];
+  lineupRoster = [];
+  bossVictorySequenceStarted = false;
+  bossVictoryCaptionTypedLen = 0;
+  bossVictoryCaptionFrame = 0;
+  bossVictoryLinedUpAt = 0;
+  sohailCreditsCaptionIndex = 0;
+  sohailCreditsCaptionTypedLen = 0;
+  sohailCreditsCaptionFrame = 0;
+  vladCaptionPhase = "to_corner";
   cavernSequence = "none";
   cavernProgress = 0;
   cavernBlackAlpha = 0;
@@ -1436,6 +1607,7 @@ function resetGame() {
   wasInRestockedWarRangeLastFrame = false;
   selectedStripIndex = 0;
   overlayEl.classList.add("hidden");
+  overlayEl.classList.remove("overlay-victory");
   updateHUD();
 }
 
@@ -1665,6 +1837,7 @@ function drawExplosions() {
 }
 
 document.addEventListener("keydown", (e) => {
+  unlockAudio();
   keys[e.key.toLowerCase()] = true;
 
   if (characterSelectActive) {
@@ -1769,6 +1942,9 @@ document.addEventListener("keydown", (e) => {
     if (!isGameOver && hasStarted && player.currentRoom === SECRET_ROOM_2) {
       trySecretRoom2BeefBroccoli();
     }
+    if (!isGameOver && hasStarted && player.currentRoom === ROOM5_JANICE) {
+      tryRoom5Pot();
+    }
     e.preventDefault();
   }
 
@@ -1776,9 +1952,11 @@ document.addEventListener("keydown", (e) => {
     const key = e.key.toLowerCase();
     const nextBoss = "boss"[bossTypedSequence.length];
     const nextSecret2 = "secret room 2"[secretRoom2TypedSequence.length];
+    const nextJanice = "janice"[janiceTypedSequence.length];
     if (key === nextBoss) {
       bossTypedSequence += key;
       secretRoom2TypedSequence = "";
+      janiceTypedSequence = "";
       if (bossTypedSequence === "boss") {
         player.currentRoom = BOSS_ROOM;
         player.x = ROOM_MARGIN_X + ROOM_WIDTH / 2;
@@ -1792,6 +1970,7 @@ document.addEventListener("keydown", (e) => {
     } else if (key === nextSecret2) {
       secretRoom2TypedSequence += key;
       bossTypedSequence = "";
+      janiceTypedSequence = "";
       if (secretRoom2TypedSequence === "secret room 2") {
         player.currentRoom = SECRET_ROOM_2;
         player.x = ROOM_MARGIN_X + ROOM_WIDTH / 2;
@@ -1802,9 +1981,23 @@ document.addEventListener("keydown", (e) => {
           secretDoorOpenEl.play().catch(() => {});
         }
       }
+    } else if (key === nextJanice) {
+      janiceTypedSequence += key;
+      bossTypedSequence = "";
+      secretRoom2TypedSequence = "";
+      if (janiceTypedSequence === "janice") {
+        player.currentRoom = ROOM5_JANICE;
+        player.x = ROOM_MARGIN_X + ROOM_WIDTH / 2;
+        player.y = ROOM_MARGIN_Y + ROOM_HEIGHT / 2;
+        enemies.forEach((e) => {
+          if (e.roomId === ROOM5_JANICE) e.hp = 0;
+        });
+        janiceTypedSequence = "";
+      }
     } else {
       bossTypedSequence = "";
       secretRoom2TypedSequence = "";
+      janiceTypedSequence = "";
     }
   }
 });
@@ -1825,12 +2018,13 @@ canvas.addEventListener("mousemove", (e) => {
     selectedCharacterIndex = panel;
     if (characterSelectClickEl) {
       characterSelectClickEl.currentTime = 0;
-      characterSelectClickEl.play().catch(() => {});
+      characterSelectClickEl.play().catch(() => {}); // amaze98-clicking-interface-select-201946 on hover
     }
   }
 });
 
 canvas.addEventListener("click", (e) => {
+  unlockAudio();
   if (!characterSelectActive) return;
   const rect = canvas.getBoundingClientRect();
   const scaleX = canvas.width / rect.width;
@@ -1845,7 +2039,10 @@ canvas.addEventListener("click", (e) => {
   }
 });
 
+document.addEventListener("touchstart", () => { unlockAudio(); }, { once: true, passive: true });
+
 restartButton.addEventListener("click", () => {
+  unlockAudio();
   if (characterSelectActive) {
     currentHeroSheet = CHARACTER_OPTIONS[selectedCharacterIndex].id;
     characterSelectActive = false;
@@ -1869,6 +2066,7 @@ function toggleWeapon() {
 
 function attemptAttack() {
   if (player.attackCooldown > 0) return;
+  if (lineupSequence !== "none") return;
 
   if (player.currentRoom === HIDDEN_ROOM) {
     shopkeeperCaptionText =
@@ -1976,10 +2174,239 @@ function performSwordAttack() {
   }
 }
 
+function updateLineupSequence() {
+  const cx = ROOM_MARGIN_X + ROOM_WIDTH / 2;
+  const cy = ROOM_MARGIN_Y + ROOM_HEIGHT / 2;
+
+  if (lineupSequence === "lined_up" && bossVictorySequenceStarted && bossVictoryLinedUpAt > 0 && gameFrameCount >= bossVictoryLinedUpAt + BOSS_VICTORY_END_DELAY) {
+    lineupSequence = "sohail_walk_down";
+    return;
+  }
+
+  if (lineupSequence === "sohail_walk_down" && lineupRoster.length === 12) {
+    const sohail = lineupRoster.find((e) => e.key === "sohail");
+    if (!sohail) {
+      lineupSequence = "sohail_caption";
+      sohailCreditsCaptionIndex = 0;
+      sohailCreditsCaptionTypedLen = 0;
+      sohailCreditsCaptionFrame = 0;
+      return;
+    }
+    const targetY = ROOM_MARGIN_Y + ROOM_HEIGHT - SOHAIL_BOTTOM_TARGET_Y_OFFSET;
+    const dx = cx - sohail.x;
+    const dy = targetY - sohail.y;
+    const dist = Math.hypot(dx, dy);
+    if (dist <= LINEUP_ARRIVED_R) {
+      sohail.y = targetY;
+      sohail.x = cx;
+      lineupSequence = "sohail_caption";
+      sohailCreditsCaptionIndex = 0;
+      sohailCreditsCaptionTypedLen = 0;
+      sohailCreditsCaptionFrame = 0;
+    } else {
+      const move = Math.min(LINEUP_SPEED, dist);
+      sohail.x += (dx / dist) * move;
+      sohail.y += (dy / dist) * move;
+      sohail.walkFrameCounter++;
+      if (sohail.walkFrameCounter >= LINEUP_WALK_FRAME_INTERVAL) {
+        sohail.walkFrameCounter = 0;
+        sohail.walkFrameIndex = (sohail.walkFrameIndex + 1) % 4;
+      }
+    }
+    return;
+  }
+
+  if (lineupSequence === "sohail_caption") {
+    const msg = SOHAIL_CREDITS_CAPTIONS[sohailCreditsCaptionIndex];
+    if (!msg) {
+      isGameOver = true;
+      victory = true;
+      showEndMessage();
+      return;
+    }
+    sohailCreditsCaptionFrame++;
+    if (sohailCreditsCaptionTypedLen < msg.length) {
+      if (sohailCreditsCaptionFrame >= SOHAIL_CREDITS_CAPTION_CHAR_DELAY) {
+        sohailCreditsCaptionFrame = 0;
+        sohailCreditsCaptionTypedLen++;
+      }
+    } else {
+      if (sohailCreditsCaptionFrame >= SOHAIL_CREDITS_CAPTION_HOLD_FRAMES) {
+        sohailCreditsCaptionIndex++;
+        sohailCreditsCaptionTypedLen = 0;
+        sohailCreditsCaptionFrame = 0;
+        if (sohailCreditsCaptionIndex >= SOHAIL_CREDITS_CAPTIONS.length) {
+          lineupSequence = "vlad_caption";
+          vladCaptionPhase = "to_corner";
+        }
+      }
+    }
+    return;
+  }
+
+  if (lineupSequence === "vlad_caption" && lineupRoster.length === 12) {
+    const vlad = lineupRoster.find((e) => e.key === "vlad");
+    if (!vlad) {
+      isGameOver = true;
+      victory = true;
+      showEndMessage();
+      return;
+    }
+    if (vladCaptionPhase === "to_corner") {
+      const dx = VLAD_CORNER_X - vlad.x;
+      const dy = VLAD_CORNER_Y - vlad.y;
+      const dist = Math.hypot(dx, dy);
+      if (dist <= LINEUP_ARRIVED_R) {
+        vlad.x = VLAD_CORNER_X;
+        vlad.y = VLAD_CORNER_Y;
+        vladCaptionPhase = "off_screen";
+      } else {
+        const move = Math.min(LINEUP_SPEED, dist);
+        vlad.x += (dx / dist) * move;
+        vlad.y += (dy / dist) * move;
+        vlad.walkFrameCounter++;
+        if (vlad.walkFrameCounter >= LINEUP_WALK_FRAME_INTERVAL) {
+          vlad.walkFrameCounter = 0;
+          vlad.walkFrameIndex = (vlad.walkFrameIndex + 1) % 4;
+        }
+      }
+    } else {
+      const dx = VLAD_OFF_SCREEN_X - vlad.x;
+      const dy = VLAD_CORNER_Y - vlad.y;
+      const dist = Math.hypot(dx, dy);
+      if (dist > LINEUP_ARRIVED_R) {
+        const move = Math.min(LINEUP_SPEED, dist);
+        vlad.x += (dx / dist) * move;
+        vlad.y += (dy / dist) * move;
+      }
+      vlad.walkFrameCounter++;
+      if (vlad.walkFrameCounter >= LINEUP_WALK_FRAME_INTERVAL) {
+        vlad.walkFrameCounter = 0;
+        vlad.walkFrameIndex = (vlad.walkFrameIndex + 1) % 4;
+      }
+      if (vlad.x <= VLAD_OFF_ARRIVED_X) {
+        isGameOver = true;
+        victory = true;
+        showEndMessage();
+      }
+    }
+    return;
+  }
+
+  if (lineupSequence === "walk_to_center") {
+    const dx = cx - player.x;
+    const dy = cy - player.y;
+    const dist = Math.hypot(dx, dy);
+    if (dist <= LINEUP_ARRIVED_R) {
+      player.x = cx;
+      player.y = cy;
+      lineupSequence = "caption";
+      bossVictoryCaptionTypedLen = 0;
+      bossVictoryCaptionFrame = 0;
+    } else {
+      const move = Math.min(LINEUP_SPEED, dist);
+      player.x += (dx / dist) * move;
+      player.y += (dy / dist) * move;
+      player.facingAngle = Math.atan2(dy, dx);
+    }
+    return;
+  }
+
+  if (lineupSequence === "caption") {
+    bossVictoryCaptionFrame++;
+    if (bossVictoryCaptionTypedLen < BOSS_VICTORY_CAPTION.length) {
+      if (bossVictoryCaptionFrame >= BOSS_VICTORY_CAPTION_CHAR_DELAY) {
+        bossVictoryCaptionFrame = 0;
+        bossVictoryCaptionTypedLen++;
+      }
+    } else {
+      if (bossVictoryCaptionFrame >= BOSS_VICTORY_CAPTION_HOLD_FRAMES) {
+        startBossVictoryLineup();
+        lineupSequence = "entering";
+      }
+    }
+    return;
+  }
+
+  if (lineupSequence === "entering" && bossVictorySequenceStarted && lineupRoster.length === 12) {
+    let allArrived = true;
+    for (const entry of lineupRoster) {
+      const dx = entry.targetX - entry.x;
+      const dy = entry.targetY - entry.y;
+      const dist = Math.hypot(dx, dy);
+      if (dist > LINEUP_ARRIVED_R) {
+        allArrived = false;
+        const move = Math.min(LINEUP_SPEED, dist);
+        entry.x += (dx / dist) * move;
+        entry.y += (dy / dist) * move;
+        entry.walkFrameCounter++;
+        if (entry.walkFrameCounter >= LINEUP_WALK_FRAME_INTERVAL) {
+          entry.walkFrameCounter = 0;
+          entry.walkFrameIndex = (entry.walkFrameIndex + 1) % 4;
+        }
+      }
+    }
+    if (allArrived) {
+      lineupSequence = "lined_up";
+      bossVictoryLinedUpAt = gameFrameCount;
+    }
+    return;
+  }
+
+  if (lineupSequence !== "entering" || lineupTargets.length < 7) return;
+  const chars = [player, abls, shopkeeper, salesman, april, ronaldsmom, janiceNpc];
+  let allArrived = true;
+  for (let i = 0; i < 7; i++) {
+    const c = chars[i];
+    const t = lineupTargets[i];
+    const dx = t.x - c.x;
+    const dy = t.y - c.y;
+    const dist = Math.hypot(dx, dy);
+    if (dist > LINEUP_ARRIVED_R) {
+      allArrived = false;
+      const move = Math.min(LINEUP_SPEED, dist);
+      c.x += (dx / dist) * move;
+      c.y += (dy / dist) * move;
+      c.facingAngle = Math.atan2(dy, dx);
+    }
+  }
+  if (allArrived) {
+    lineupSequence = "lined_up";
+    if (bossVictorySequenceStarted) bossVictoryLinedUpAt = gameFrameCount;
+  }
+}
+
+function updateSohailCreditsMovement() {
+  if (lineupSequence !== "sohail_caption" || lineupRoster.length === 0) return;
+  const sohail = lineupRoster.find((e) => e.key === "sohail");
+  if (!sohail) return;
+  let moveX = 0;
+  let moveY = 0;
+  if (keys["arrowup"] || keys["w"]) moveY -= 1;
+  if (keys["arrowdown"] || keys["s"]) moveY += 1;
+  if (keys["arrowleft"] || keys["a"]) moveX -= 1;
+  if (keys["arrowright"] || keys["d"]) moveX += 1;
+  const half = LINEUP_CHAR_SIZE / 2;
+  if (moveX !== 0 || moveY !== 0) {
+    const len = Math.hypot(moveX, moveY);
+    moveX /= len;
+    moveY /= len;
+    sohail.walkFrameCounter++;
+    if (sohail.walkFrameCounter >= LINEUP_WALK_FRAME_INTERVAL) {
+      sohail.walkFrameCounter = 0;
+      sohail.walkFrameIndex = (sohail.walkFrameIndex + 1) % 4;
+    }
+  }
+  const speed = LINEUP_SPEED * 1.2;
+  sohail.x = clamp(sohail.x + moveX * speed, ROOM_MARGIN_X + half, ROOM_MARGIN_X + ROOM_WIDTH - half);
+  sohail.y = clamp(sohail.y + moveY * speed, ROOM_MARGIN_Y + half, ROOM_MARGIN_Y + ROOM_HEIGHT - half);
+}
+
 function updatePlayerMovement() {
   if (roomTransition.active) return; // no movement during room slide
   if (cavernSequence !== "none") return; // no movement during cavern descent/appear
   if (room2SecretSequence !== "none") return; // no movement during room 2 secret stairs
+  if (lineupSequence !== "none") return;
   // Apply knockback first (slower, over multiple frames). Never allow ending inside a block.
   if (player.knockbackRemaining > 0) {
     const move = Math.min(KNOCKBACK_SPEED_PER_FRAME, player.knockbackRemaining);
@@ -2882,9 +3309,10 @@ function updateCoinPickups() {
 function checkWinCondition() {
   const boss = enemies.find((e) => e.isBoss);
   if (boss && boss.hp <= 0) {
-    isGameOver = true;
-    victory = true;
-    showEndMessage();
+    if (!bossVictorySequenceStarted) {
+      bossVictorySequenceStarted = true;
+      lineupSequence = "walk_to_center";
+    }
     return;
   }
   const stillAlive = enemies.some((e) => e.hp > 0);
@@ -2901,6 +3329,8 @@ function showEndMessage() {
     : "You lose";
   restartButton.textContent = "Restart";
   startHintEl.textContent = "";
+  if (victory) overlayEl.classList.add("overlay-victory");
+  else overlayEl.classList.remove("overlay-victory");
   overlayEl.classList.remove("hidden");
   if (gameMusicEl) gameMusicEl.pause();
 }
@@ -3132,6 +3562,7 @@ function getShopkeeperFollowTarget() {
 }
 
 function updateShopkeeper() {
+  if (lineupSequence !== "none") return;
   if (player.currentRoom !== HIDDEN_ROOM) return;
 
   const shopkeeperVisible = shopkeeper.state === "square" || shopkeeper.state === "to_rest" || shopkeeper.state === "following";
@@ -3226,7 +3657,7 @@ function shopkeeperFacingAngleToRow(angle) {
 }
 
 function drawShopkeeper() {
-  if (player.currentRoom !== HIDDEN_ROOM || !shopkeeperLoaded) return;
+  if (lineupSequence === "none" && (player.currentRoom !== HIDDEN_ROOM || !shopkeeperLoaded)) return;
   const row = shopkeeperFacingAngleToRow(shopkeeper.facingAngle);
   const moving =
     shopkeeper.state === "square" ||
@@ -3324,6 +3755,7 @@ function drawShopkeeperCaption() {
 }
 
 function updateApril() {
+  if (lineupSequence !== "none") return;
   if (player.currentRoom !== SECRET_ROOM_2) return;
   let target;
   if (april.state === "patrol") {
@@ -3387,6 +3819,7 @@ function updateApril() {
 }
 
 function updateRonaldsmom() {
+  if (lineupSequence !== "none") return;
   if (player.currentRoom !== SECRET_ROOM_2) return;
   if (gameFrameCount >= ronaldsmomCaptionNextAt) {
     ronaldsmomCaptionText = RONALDSMOM_CAPTIONS[ronaldsmomCaptionIndex];
@@ -3535,7 +3968,7 @@ function drawRoom11Table() {
 }
 
 function drawApril() {
-  if (player.currentRoom !== SECRET_ROOM_2 || !aprilLoaded) return;
+  if (lineupSequence === "none" && (player.currentRoom !== SECRET_ROOM_2 || !aprilLoaded)) return;
   const row = shopkeeperFacingAngleToRow(april.facingAngle);
   const col = [0, 2, 3, 2][april.walkFrameIndex % 4];
   const sx = col * aprilFrameWidth;
@@ -3589,7 +4022,7 @@ function drawAprilCaption() {
 }
 
 function drawRonaldsmom() {
-  if (player.currentRoom !== SECRET_ROOM_2 || !ronaldsmomLoaded) return;
+  if (lineupSequence === "none" && (player.currentRoom !== SECRET_ROOM_2 || !ronaldsmomLoaded)) return;
   const row = shopkeeperFacingAngleToRow(ronaldsmom.facingAngle);
   const col = [0, 2, 3, 2][ronaldsmom.walkFrameIndex % 4];
   const sx = col * ronaldsmomFrameWidth;
@@ -3843,6 +4276,7 @@ function getRoom8HighlightCaption() {
 }
 
 function updateSalesman() {
+  if (lineupSequence !== "none") return;
   const wasInRoom8 = previousPlayerRoom === SALESMAN_ROOM;
   if (player.currentRoom !== SALESMAN_ROOM) {
     if (wasInRoom8 && room8FirstWarSold) hasLeftRoom8AfterWar = true;
@@ -3946,7 +4380,7 @@ function updateSalesman() {
 }
 
 function drawSalesman() {
-  if (player.currentRoom !== SALESMAN_ROOM || !salesmanLoaded) return;
+  if (lineupSequence === "none" && (player.currentRoom !== SALESMAN_ROOM || !salesmanLoaded)) return;
   const row = shopkeeperFacingAngleToRow(salesman.facingAngle);
   const moving =
     salesman.state === "square" ||
@@ -4038,12 +4472,14 @@ function drawSalesmanCaption() {
 
 function getAblsFollowTarget() {
   let targetX = player.x - 50;
-  const targetY = player.y + 40;
+  let targetY = player.y + 40;
   targetX = Math.max(ABLS_RIGHT_MIN_X, Math.min(ROOM_MARGIN_X + ROOM_WIDTH - 40, targetX));
+  targetY = Math.min(targetY, ABLS_TOP_MAX_Y);
   return { x: targetX, y: targetY };
 }
 
 function updateAbls() {
+  if (lineupSequence !== "none") return;
   if (player.currentRoom !== ROOM9_ABLS_ROOM) return;
   const target = getAblsFollowTarget();
   const dx = target.x - abls.x;
@@ -4055,7 +4491,7 @@ function updateAbls() {
     abls.y += (dy / dist) * move;
     abls.facingAngle = Math.atan2(dy, dx);
     abls.x = Math.max(ABLS_RIGHT_MIN_X, Math.min(ROOM_MARGIN_X + ROOM_WIDTH - 40, abls.x));
-    abls.y = Math.max(ROOM_MARGIN_Y + 40, Math.min(ROOM_MARGIN_Y + ROOM_HEIGHT - 40, abls.y));
+    abls.y = Math.max(ROOM_MARGIN_Y + 40, Math.min(ABLS_TOP_MAX_Y, abls.y));
     abls.walkFrameCounter++;
     if (abls.walkFrameCounter >= 10) {
       abls.walkFrameCounter = 0;
@@ -4080,7 +4516,7 @@ function updateAbls() {
 }
 
 function drawAbls() {
-  if (player.currentRoom !== ROOM9_ABLS_ROOM || !ablsLoaded) return;
+  if (lineupSequence === "none" && (player.currentRoom !== ROOM9_ABLS_ROOM || !ablsLoaded)) return;
   const row = shopkeeperFacingAngleToRow(abls.facingAngle);
   const col = [0, 2, 3, 2][abls.walkFrameIndex % 4];
   const sx = col * ablsFrameWidth;
@@ -4145,6 +4581,244 @@ function drawAblsCaption() {
   const firstLineY = by + padding + lineHeight / 2;
   lines.forEach((line, i) => {
     ctx.fillText(line, textCenterX, firstLineY + i * lineHeight);
+  });
+}
+
+function getJaniceFollowTarget() {
+  let targetX = player.x + 50;
+  let targetY = player.y - 40;
+  targetX = Math.max(ROOM_MARGIN_X + 40, Math.min(JANICE_LEFT_MAX_X, targetX));
+  targetY = Math.max(JANICE_TOP_MIN_Y, Math.min(ROOM_MARGIN_Y + ROOM_HEIGHT - 40, targetY));
+  return { x: targetX, y: targetY };
+}
+
+function room5AllEnemiesDead() {
+  return enemies.filter((e) => e.roomId === ROOM5_JANICE && e.hp > 0).length === 0;
+}
+
+function startLineupSequence() {
+  lineupSequence = "entering";
+  const cx = ROOM_MARGIN_X + ROOM_WIDTH / 2;
+  const cy = ROOM_MARGIN_Y + ROOM_HEIGHT / 2;
+  const margin = 80;
+  const spacing = 52;
+  const entries = [
+    { x: ROOM_MARGIN_X - margin, y: cy },
+    { x: ROOM_MARGIN_X + ROOM_WIDTH + margin, y: cy },
+    { x: cx, y: ROOM_MARGIN_Y - margin },
+    { x: cx, y: ROOM_MARGIN_Y + ROOM_HEIGHT + margin },
+    { x: ROOM_MARGIN_X - margin, y: ROOM_MARGIN_Y - margin },
+    { x: ROOM_MARGIN_X + ROOM_WIDTH + margin, y: ROOM_MARGIN_Y - margin },
+    { x: ROOM_MARGIN_X - margin, y: ROOM_MARGIN_Y + ROOM_HEIGHT + margin },
+  ];
+  lineupTargets = [
+    { x: cx - spacing * 3, y: cy },
+    { x: cx - spacing * 2, y: cy },
+    { x: cx - spacing, y: cy },
+    { x: cx, y: cy },
+    { x: cx + spacing, y: cy },
+    { x: cx + spacing * 2, y: cy },
+    { x: cx + spacing * 3, y: cy },
+  ];
+  player.x = entries[0].x;
+  player.y = entries[0].y;
+  abls.x = entries[1].x;
+  abls.y = entries[1].y;
+  shopkeeper.x = entries[2].x;
+  shopkeeper.y = entries[2].y;
+  salesman.x = entries[3].x;
+  salesman.y = entries[3].y;
+  april.x = entries[4].x;
+  april.y = entries[4].y;
+  ronaldsmom.x = entries[5].x;
+  ronaldsmom.y = entries[5].y;
+  janiceNpc.x = entries[6].x;
+  janiceNpc.y = entries[6].y;
+}
+
+function startBossVictoryLineup() {
+  const cx = ROOM_MARGIN_X + ROOM_WIDTH / 2;
+  const cy = ROOM_MARGIN_Y + ROOM_HEIGHT / 2;
+  const margin = 80;
+  const rowOffset = 42;
+  const spacing = 44;
+  // 6 from top, 6 from bottom. Spread X along room width.
+  const topY = ROOM_MARGIN_Y - margin;
+  const bottomY = ROOM_MARGIN_Y + ROOM_HEIGHT + margin;
+  const span = ROOM_WIDTH - 60;
+  const startX = ROOM_MARGIN_X + 30;
+  lineupRoster = [];
+  for (let i = 0; i < 12; i++) {
+    const fromTop = i < 6;
+    const rowIndex = i % 6;
+    const entryX = startX + (rowIndex / 5) * span;
+    const entryY = fromTop ? topY : bottomY;
+    const targetRow = i < 6 ? 0 : 1;
+    const targetY = targetRow === 0 ? cy - rowOffset : cy + rowOffset;
+    const targetX = cx - spacing * 2.5 + rowIndex * spacing;
+    lineupRoster.push({
+      key: LINEUP_ROSTER_KEYS[i],
+      x: entryX,
+      y: entryY,
+      targetX,
+      targetY,
+      walkFrameIndex: 0,
+      walkFrameCounter: 0,
+    });
+  }
+}
+
+function tryRoom5Pot() {
+  if (player.currentRoom !== ROOM5_JANICE || !room5AllEnemiesDead()) return;
+  if (janicePotUsed) return;
+  const dist = Math.hypot(player.x - ROOM5_POT_X, player.y - ROOM5_POT_Y);
+  if (dist > ROOM5_POT_R) return;
+  janicePotUsed = true;
+  const curHp = Number(player.hp);
+  player.hp = Math.min(PLAYER_MAX_HP, (isNaN(curHp) ? 0 : curHp) + ROOM5_POT_HP);
+  if (heartPickupEl) { heartPickupEl.currentTime = 0; heartPickupEl.play().catch(() => {}); }
+  updateHUD();
+}
+
+function drawRoom5AcceptCaption() {
+  if (player.currentRoom !== ROOM5_JANICE || !room5AllEnemiesDead()) return;
+  const tableRight = ROOM5_TABLE_X + ROOM5_TABLE_W / 2;
+  const x = tableRight + 18;
+  const y = ROOM5_TABLE_Y + ROOM5_TABLE_H / 2;
+  ctx.fillStyle = "#eceff1";
+  ctx.font = "16px sans-serif";
+  ctx.textAlign = "left";
+  ctx.textBaseline = "middle";
+  ctx.fillText("Accept with E", x, y);
+}
+
+function drawRoom5JaniceTable() {
+  if (player.currentRoom !== ROOM5_JANICE || !room5AllEnemiesDead()) return;
+  const tableLeft = ROOM5_TABLE_X - ROOM5_TABLE_W / 2;
+  const tableTop = ROOM5_TABLE_Y;
+  const legW = 10;
+  const legH = 28;
+  const legsY = tableTop + ROOM5_TABLE_H;
+  ctx.fillStyle = "#4e342e";
+  ctx.fillRect(tableLeft, legsY, legW, legH);
+  ctx.fillRect(tableLeft + ROOM5_TABLE_W - legW, legsY, legW, legH);
+  ctx.fillStyle = "#5d4037";
+  ctx.fillRect(tableLeft, tableTop, ROOM5_TABLE_W, ROOM5_TABLE_H);
+  ctx.strokeStyle = "#4e342e";
+  ctx.lineWidth = 2;
+  ctx.strokeRect(tableLeft, tableTop, ROOM5_TABLE_W, ROOM5_TABLE_H);
+  const pw = ROOM5_POT_DRAW_W;
+  const ph = ROOM5_POT_DRAW_H;
+  const px = ROOM5_POT_X - pw / 2;
+  const py = ROOM5_POT_Y - ph / 2;
+  if (moleItemLoaded) {
+    if (janicePotUsed) ctx.globalAlpha = 0.45;
+    ctx.drawImage(moleItemImage, px, py, pw, ph);
+    ctx.globalAlpha = 1;
+  } else {
+    ctx.fillStyle = janicePotUsed ? "rgba(80,80,80,0.6)" : "#1a1a1a";
+    ctx.beginPath();
+    ctx.ellipse(ROOM5_POT_X, ROOM5_POT_Y, 14, 18, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = "#2a2a2a";
+    ctx.lineWidth = 1;
+    ctx.stroke();
+  }
+  if (!janicePotUsed) {
+    ctx.fillStyle = "rgba(255,255,255,0.7)";
+    ctx.font = "12px sans-serif";
+    ctx.textAlign = "center";
+    ctx.fillText("E", ROOM5_POT_X, ROOM5_POT_Y + 4);
+  }
+}
+
+function updateJanice() {
+  if (lineupSequence !== "none") return;
+  if (player.currentRoom !== ROOM5_JANICE || !room5AllEnemiesDead()) return;
+  if (janiceCaptionNextAt === 0) {
+    janiceCaptionText = JANICE_CAPTIONS[0];
+    janiceCaptionUntil = gameFrameCount + JANICE_CAPTION_DURATION;
+    janiceCaptionNextAt = gameFrameCount + JANICE_CAPTION_INTERVAL;
+    janiceCaptionIndex = 1;
+  } else if (gameFrameCount >= janiceCaptionNextAt) {
+    janiceCaptionText = JANICE_CAPTIONS[janiceCaptionIndex % JANICE_CAPTIONS.length];
+    janiceCaptionUntil = gameFrameCount + JANICE_CAPTION_DURATION;
+    janiceCaptionNextAt = gameFrameCount + JANICE_CAPTION_INTERVAL;
+    janiceCaptionIndex++;
+  }
+  const target = getJaniceFollowTarget();
+  const dx = target.x - janiceNpc.x;
+  const dy = target.y - janiceNpc.y;
+  const dist = Math.hypot(dx, dy);
+  if (dist > 4) {
+    const move = Math.min(JANICE_NPC_SPEED, dist);
+    janiceNpc.x += (dx / dist) * move;
+    janiceNpc.y += (dy / dist) * move;
+    janiceNpc.facingAngle = Math.atan2(dy, dx);
+    janiceNpc.x = Math.max(ROOM_MARGIN_X + 40, Math.min(JANICE_LEFT_MAX_X, janiceNpc.x));
+    janiceNpc.y = Math.max(JANICE_TOP_MIN_Y, Math.min(ROOM_MARGIN_Y + ROOM_HEIGHT - 40, janiceNpc.y));
+    janiceNpc.walkFrameCounter++;
+    if (janiceNpc.walkFrameCounter >= 10) {
+      janiceNpc.walkFrameCounter = 0;
+      janiceNpc.walkFrameIndex = (janiceNpc.walkFrameIndex + 1) % 4;
+    }
+  }
+}
+
+function drawJanice() {
+  if (lineupSequence === "none" && (player.currentRoom !== ROOM5_JANICE || !room5AllEnemiesDead() || !janiceHeroLoaded)) return;
+  const row = shopkeeperFacingAngleToRow(janiceNpc.facingAngle);
+  const col = [0, 2, 3, 2][janiceNpc.walkFrameIndex % 4];
+  const fw = janiceHeroFrameWidth;
+  const fh = janiceHeroFrameHeight;
+  const sx = col * fw;
+  const sy = row * fh;
+  const w = JANICE_NPC_SIZE;
+  const scale = w / fw;
+  const h = fh * scale;
+  ctx.drawImage(janiceHeroImage, sx, sy, fw, fh, janiceNpc.x - w / 2, janiceNpc.y - h / 2, w, h);
+}
+
+function drawJaniceCaption() {
+  if (player.currentRoom !== ROOM5_JANICE || !room5AllEnemiesDead()) return;
+  if (gameFrameCount >= janiceCaptionUntil || !janiceCaptionText) return;
+  const lineHeight = 18;
+  const padding = 12;
+  const maxBubbleW = 220;
+  const lines = wrapSalesmanCaption(janiceCaptionText, maxBubbleW - padding * 2);
+  let bubbleW = Math.max(...lines.map((l) => ctx.measureText(l).width)) + padding * 2;
+  bubbleW = Math.min(maxBubbleW, bubbleW);
+  const bubbleH = lines.length * lineHeight + padding * 2;
+  const r = 8;
+  const gap = 10;
+  const headY = janiceNpc.y - JANICE_NPC_SIZE / 2;
+  let bx = janiceNpc.x + JANICE_NPC_SIZE / 2 + gap;
+  let by = headY - bubbleH / 2;
+  bx = Math.max(ROOM_MARGIN_X + CAPTION_MARGIN, Math.min(ROOM_MARGIN_X + ROOM_WIDTH - bubbleW - CAPTION_MARGIN, bx));
+  by = Math.max(ROOM_MARGIN_Y + CAPTION_MARGIN, Math.min(ROOM_MARGIN_Y + ROOM_HEIGHT - bubbleH - CAPTION_MARGIN, by));
+  ctx.fillStyle = "rgba(30,30,40,0.95)";
+  ctx.strokeStyle = "#607d8b";
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(bx + r, by);
+  ctx.lineTo(bx + bubbleW - r, by);
+  ctx.quadraticCurveTo(bx + bubbleW, by, bx + bubbleW, by + r);
+  ctx.lineTo(bx + bubbleW, by + bubbleH - r);
+  ctx.quadraticCurveTo(bx + bubbleW, by + bubbleH, bx + bubbleW - r, by + bubbleH);
+  ctx.lineTo(bx + r, by + bubbleH);
+  ctx.quadraticCurveTo(bx, by + bubbleH, bx, by + bubbleH - r);
+  ctx.lineTo(bx, by + r);
+  ctx.quadraticCurveTo(bx, by, bx + r, by);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+  ctx.fillStyle = "#eceff1";
+  ctx.font = "14px sans-serif";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  const startY = by + padding + lineHeight / 2;
+  lines.forEach((line, i) => {
+    ctx.fillText(line, bx + bubbleW / 2, startY + i * lineHeight);
   });
 }
 
@@ -4306,6 +4980,44 @@ function roundRect(ctx, x, y, w, h, r) {
   ctx.closePath();
 }
 
+function getLineupSprite(key) {
+  switch (key) {
+    case "ronald": return ronaldHeroLoaded ? { img: ronaldHeroImage, fw: ronaldHeroFrameWidth, fh: ronaldHeroFrameHeight } : null;
+    case "yusuf": return yusufHeroLoaded ? { img: yusufHeroImage, fw: yusufHeroFrameWidth, fh: yusufHeroFrameHeight } : null;
+    case "janice": return janiceHeroLoaded ? { img: janiceHeroImage, fw: janiceHeroFrameWidth, fh: janiceHeroFrameHeight } : null;
+    case "sohail": return sohailHeroLoaded ? { img: sohailHeroImage, fw: sohailHeroFrameWidth, fh: sohailHeroFrameHeight } : null;
+    case "april": return aprilLoaded ? { img: aprilImage, fw: aprilFrameWidth, fh: aprilFrameHeight } : null;
+    case "abls": return ablsLoaded ? { img: ablsImage, fw: ablsFrameWidth, fh: ablsFrameHeight } : null;
+    case "ellinor": return ellinorHeroLoaded ? { img: ellinorHeroImage, fw: ellinorHeroFrameWidth, fh: ellinorHeroFrameHeight } : null;
+    case "kosta": return shopkeeperLoaded ? { img: shopkeeperImage, fw: shopkeeperFrameWidth, fh: shopkeeperFrameHeight } : null;
+    case "rayan": return rayanHeroLoaded ? { img: rayanHeroImage, fw: rayanHeroFrameWidth, fh: rayanHeroFrameHeight } : null;
+    case "ronaldsmom": return ronaldsmomLoaded ? { img: ronaldsmomImage, fw: ronaldsmomFrameWidth, fh: ronaldsmomFrameHeight } : null;
+    case "vlad": return salesmanLoaded ? { img: salesmanImage, fw: salesmanFrameWidth, fh: salesmanFrameHeight } : null;
+    case "alana": return alanaHeroLoaded ? { img: alanaHeroImage, fw: alanaHeroFrameWidth, fh: alanaHeroFrameHeight } : null;
+    default: return null;
+  }
+}
+
+function drawLineupCharacter(entry, moving) {
+  const sprite = getLineupSprite(entry.key);
+  if (!sprite || sprite.fw <= 0 || sprite.fh <= 0) return;
+  const row = 0;
+  const col = moving ? [0, 2, 3, 2][entry.walkFrameIndex % 4] : 1;
+  const sx = col * sprite.fw;
+  const sy = row * sprite.fh;
+  const w = LINEUP_CHAR_SIZE;
+  const scale = w / sprite.fw;
+  const h = sprite.fh * scale;
+  ctx.drawImage(
+    sprite.img,
+    sx, sy, sprite.fw, sprite.fh,
+    entry.x - w / 2,
+    entry.y - h / 2,
+    w,
+    h
+  );
+}
+
 function drawPlayer() {
   // Resolve which hero sheet to use (same row layout for all: 0=down, 1=up, 2=left, 3=right)
   let img = heroImage, fw = heroFrameWidth, fh = heroFrameHeight, loaded = heroSpriteLoaded;
@@ -4315,6 +5027,14 @@ function drawPlayer() {
     img = ellinorHeroImage; fw = ellinorHeroFrameWidth; fh = ellinorHeroFrameHeight; loaded = true;
   } else if (currentHeroSheet === "alana" && alanaHeroLoaded) {
     img = alanaHeroImage; fw = alanaHeroFrameWidth; fh = alanaHeroFrameHeight; loaded = true;
+  } else if (currentHeroSheet === "ronald" && ronaldHeroLoaded) {
+    img = ronaldHeroImage; fw = ronaldHeroFrameWidth; fh = ronaldHeroFrameHeight; loaded = true;
+  } else if (currentHeroSheet === "yusuf" && yusufHeroLoaded) {
+    img = yusufHeroImage; fw = yusufHeroFrameWidth; fh = yusufHeroFrameHeight; loaded = true;
+  } else if (currentHeroSheet === "janice" && janiceHeroLoaded) {
+    img = janiceHeroImage; fw = janiceHeroFrameWidth; fh = janiceHeroFrameHeight; loaded = true;
+  } else if (currentHeroSheet === "sohail" && sohailHeroLoaded) {
+    img = sohailHeroImage; fw = sohailHeroFrameWidth; fh = sohailHeroFrameHeight; loaded = true;
   }
   if (loaded && fw > 0 && fh > 0) {
     // Determine sprite row based on direction (row 0=towards player, 1=away, 2=left, 3=right)
@@ -4631,6 +5351,181 @@ function drawUIHints() {
   }
 }
 
+function drawEndSequenceBorderFlash() {
+  const hue = (gameFrameCount * END_SEQUENCE_BORDER_HUE_SPEED) % 360;
+  ctx.fillStyle = `hsl(${hue}, 75%, 45%)`;
+  ctx.fillRect(0, 0, ROOM_MARGIN_X, canvas.height);
+  ctx.fillRect(ROOM_MARGIN_X + ROOM_WIDTH, 0, canvas.width - (ROOM_MARGIN_X + ROOM_WIDTH), canvas.height);
+  ctx.fillRect(ROOM_MARGIN_X, 0, ROOM_WIDTH, ROOM_MARGIN_Y);
+  ctx.fillRect(ROOM_MARGIN_X, ROOM_MARGIN_Y + ROOM_HEIGHT, ROOM_WIDTH, canvas.height - (ROOM_MARGIN_Y + ROOM_HEIGHT));
+}
+
+function wrapCaptionLinesWithFont(ctx, text, maxWidth, fontStr) {
+  ctx.font = fontStr;
+  const words = text.split(/\s+/);
+  const lines = [];
+  let current = "";
+  for (const w of words) {
+    const trial = current ? current + " " + w : w;
+    if (ctx.measureText(trial).width <= maxWidth) {
+      current = trial;
+    } else {
+      if (current) lines.push(current);
+      current = ctx.measureText(w).width <= maxWidth ? w : w;
+    }
+  }
+  if (current) lines.push(current);
+  return lines;
+}
+
+function drawVladEndCaption() {
+  const vlad = lineupRoster.find((e) => e.key === "vlad");
+  if (!vlad) return;
+  const text = VLAD_END_CAPTION;
+  const fontSize = 16;
+  ctx.font = fontSize + "px sans-serif";
+  ctx.textAlign = "center";
+  const maxTextWidth = 320;
+  const lines = wrapCaptionLines(text, maxTextWidth - 24);
+  const lineHeight = 20;
+  const padding = 12;
+  ctx.font = fontSize + "px sans-serif";
+  const maxW = Math.max(...lines.map((l) => ctx.measureText(l).width));
+  const bubbleW = maxW + padding * 2;
+  const bubbleH = lines.length * lineHeight + padding * 2;
+  const gap = 14;
+  let x = vlad.x - bubbleW / 2;
+  let by = vlad.y - LINEUP_CHAR_SIZE / 2 - gap - bubbleH;
+  x = Math.max(ROOM_MARGIN_X + CAPTION_MARGIN, Math.min(ROOM_MARGIN_X + ROOM_WIDTH - bubbleW - CAPTION_MARGIN, x));
+  by = Math.max(ROOM_MARGIN_Y + CAPTION_MARGIN, Math.min(ROOM_MARGIN_Y + ROOM_HEIGHT - bubbleH - CAPTION_MARGIN, by));
+  const r = 8;
+  ctx.fillStyle = "rgba(255, 255, 255, 0.95)";
+  ctx.strokeStyle = "#78909c";
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(x + r, by);
+  ctx.lineTo(x + bubbleW - r, by);
+  ctx.arcTo(x + bubbleW, by, x + bubbleW, by + r, r);
+  ctx.lineTo(x + bubbleW, by + bubbleH - r);
+  ctx.arcTo(x + bubbleW, by + bubbleH, x + bubbleW - r, by + bubbleH, r);
+  ctx.lineTo(x + r, by + bubbleH);
+  ctx.arcTo(x, by + bubbleH, x, by + bubbleH - r, r);
+  ctx.lineTo(x, by + r);
+  ctx.arcTo(x, by, x + r, by, r);
+  ctx.fill();
+  ctx.stroke();
+  ctx.font = fontSize + "px sans-serif";
+  ctx.fillStyle = "#1b1b26";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  const textCenterX = x + bubbleW / 2;
+  const firstLineY = by + padding + lineHeight / 2;
+  for (let i = 0; i < lines.length; i++) {
+    ctx.fillText(lines[i], textCenterX, firstLineY + i * lineHeight);
+  }
+}
+
+function drawBossVictoryCaption() {
+  const text = BOSS_VICTORY_CAPTION.slice(0, bossVictoryCaptionTypedLen);
+  if (!text) return;
+
+  const fontSize = 28;
+  const fontStr = "bold " + fontSize + "px sans-serif";
+  ctx.font = fontStr;
+  const padding = 18;
+  const maxTextWidth = ROOM_WIDTH - 80;
+  const lines = wrapCaptionLinesWithFont(ctx, text, maxTextWidth, fontStr);
+  const lineHeight = 34;
+  const maxW = Math.max(...lines.map((l) => ctx.measureText(l).width));
+  const bubbleW = Math.min(maxW + padding * 2, ROOM_WIDTH - CAPTION_MARGIN * 2);
+  const bubbleH = lines.length * lineHeight + padding * 2;
+
+  let x = ROOM_MARGIN_X + ROOM_WIDTH / 2 - bubbleW / 2;
+  let by = ROOM_MARGIN_Y + 24;
+  x = Math.max(ROOM_MARGIN_X + CAPTION_MARGIN, Math.min(ROOM_MARGIN_X + ROOM_WIDTH - bubbleW - CAPTION_MARGIN, x));
+  by = Math.max(ROOM_MARGIN_Y + CAPTION_MARGIN, Math.min(ROOM_MARGIN_Y + ROOM_HEIGHT - bubbleH - CAPTION_MARGIN, by));
+
+  const r = 12;
+  const useFlashing = isEndSequenceFlashing();
+  const hue = useFlashing ? (gameFrameCount * END_SEQUENCE_CAPTION_HUE_SPEED) % 360 : 0;
+  const bubbleColor = useFlashing ? `hsl(${hue}, 55%, 92%)` : "rgba(255, 255, 255, 0.95)";
+  ctx.fillStyle = bubbleColor;
+  ctx.strokeStyle = useFlashing ? `hsl(${hue}, 50%, 70%)` : "#78909c";
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(x + r, by);
+  ctx.lineTo(x + bubbleW - r, by);
+  ctx.arcTo(x + bubbleW, by, x + bubbleW, by + r, r);
+  ctx.lineTo(x + bubbleW, by + bubbleH - r);
+  ctx.arcTo(x + bubbleW, by + bubbleH, x + bubbleW - r, by + bubbleH, r);
+  ctx.lineTo(x + r, by + bubbleH);
+  ctx.arcTo(x, by + bubbleH, x, by + bubbleH - r, r);
+  ctx.lineTo(x, by + r);
+  ctx.arcTo(x, by, x + r, by, r);
+  ctx.fill();
+  ctx.stroke();
+
+  ctx.font = fontStr;
+  const textColor = useFlashing ? `hsl(${hue}, 75%, 22%)` : "#1b1b26";
+  ctx.fillStyle = textColor;
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  for (let i = 0; i < lines.length; i++) {
+    ctx.fillText(lines[i], x + bubbleW / 2, by + padding + lineHeight / 2 + i * lineHeight);
+  }
+}
+
+function drawSohailCreditsCaption() {
+  const msg = SOHAIL_CREDITS_CAPTIONS[sohailCreditsCaptionIndex];
+  if (!msg) return;
+  const text = msg.slice(0, sohailCreditsCaptionTypedLen);
+  if (!text) return;
+
+  const fontSize = 18;
+  ctx.font = fontSize + "px sans-serif";
+  ctx.textAlign = "center";
+  const maxTextWidth = ROOM_WIDTH - 80;
+  const lines = wrapCaptionLines(text, maxTextWidth * 0.8);
+  const lineHeight = 24;
+  const padding = 14;
+  ctx.font = fontSize + "px sans-serif";
+  const maxW = Math.max(maxTextWidth, ...lines.map((l) => ctx.measureText(l).width));
+  const bubbleW = Math.min(maxW + padding * 2, ROOM_WIDTH - CAPTION_MARGIN * 2);
+  const bubbleH = lines.length * lineHeight + padding * 2;
+  const gap = 16;
+  const sohail = lineupRoster.find((e) => e.key === "sohail");
+  const anchorY = sohail ? sohail.y : ROOM_MARGIN_Y + ROOM_HEIGHT - SOHAIL_BOTTOM_TARGET_Y_OFFSET;
+  let x = ROOM_MARGIN_X + ROOM_WIDTH / 2 - bubbleW / 2;
+  let by = anchorY - LINEUP_CHAR_SIZE / 2 - gap - bubbleH;
+  x = Math.max(ROOM_MARGIN_X + CAPTION_MARGIN, Math.min(ROOM_MARGIN_X + ROOM_WIDTH - bubbleW - CAPTION_MARGIN, x));
+  by = Math.max(ROOM_MARGIN_Y + CAPTION_MARGIN, Math.min(ROOM_MARGIN_Y + ROOM_HEIGHT - bubbleH - CAPTION_MARGIN, by));
+
+  const r = 8;
+  ctx.fillStyle = "rgba(255, 255, 255, 0.95)";
+  ctx.strokeStyle = "#78909c";
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(x + r, by);
+  ctx.lineTo(x + bubbleW - r, by);
+  ctx.arcTo(x + bubbleW, by, x + bubbleW, by + r, r);
+  ctx.lineTo(x + bubbleW, by + bubbleH - r);
+  ctx.arcTo(x + bubbleW, by + bubbleH, x + bubbleW - r, by + bubbleH, r);
+  ctx.lineTo(x + r, by + bubbleH);
+  ctx.arcTo(x, by + bubbleH, x, by + bubbleH - r, r);
+  ctx.lineTo(x, by + r);
+  ctx.arcTo(x, by, x + r, by, r);
+  ctx.fill();
+  ctx.stroke();
+
+  ctx.font = fontSize + "px sans-serif";
+  ctx.fillStyle = "#1b1b26";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  for (let i = 0; i < lines.length; i++) {
+    ctx.fillText(lines[i], x + bubbleW / 2, by + padding + lineHeight / 2 + i * lineHeight);
+  }
+}
+
 function drawSealedDoorCaption() {
   if (!sealedDoorCaption) return;
 
@@ -4762,18 +5657,24 @@ function drawMinimap() {
 }
 
 function getCharacterSelectSprite(index) {
-  if (index === 0) return { img: alanaHeroImage, loaded: alanaHeroLoaded, fw: alanaHeroFrameWidth, fh: alanaHeroFrameHeight };
-  if (index === 1) return { img: rayanHeroImage, loaded: rayanHeroLoaded, fw: rayanHeroFrameWidth, fh: rayanHeroFrameHeight };
-  return { img: ellinorHeroImage, loaded: ellinorHeroLoaded, fw: ellinorHeroFrameWidth, fh: ellinorHeroFrameHeight };
+  const sheets = [
+    { img: alanaHeroImage, loaded: alanaHeroLoaded, fw: alanaHeroFrameWidth, fh: alanaHeroFrameHeight },
+    { img: rayanHeroImage, loaded: rayanHeroLoaded, fw: rayanHeroFrameWidth, fh: rayanHeroFrameHeight },
+    { img: ellinorHeroImage, loaded: ellinorHeroLoaded, fw: ellinorHeroFrameWidth, fh: ellinorHeroFrameHeight },
+    { img: yusufHeroImage, loaded: yusufHeroLoaded, fw: yusufHeroFrameWidth, fh: yusufHeroFrameHeight },
+    { img: ronaldHeroImage, loaded: ronaldHeroLoaded, fw: ronaldHeroFrameWidth, fh: ronaldHeroFrameHeight },
+  ];
+  return sheets[index] || sheets[0];
 }
 
 function characterSelectPanelAt(x, y) {
   const cw = canvas.width;
   const ch = canvas.height;
   const numOptions = CHARACTER_OPTIONS.length;
-  const panelW = 180;
-  const panelH = 220;
-  const gap = 60;
+  const maxTotalW = cw - 40;
+  const gap = numOptions > 4 ? 16 : 60;
+  const panelW = Math.min(180, Math.floor((maxTotalW - (numOptions - 1) * gap) / numOptions));
+  const panelH = numOptions > 4 ? 160 : 220;
   const totalW = numOptions * panelW + (numOptions - 1) * gap;
   const startX = (cw - totalW) / 2 + panelW / 2;
   const centerY = ch / 2 - 20;
@@ -4800,10 +5701,11 @@ function drawCharacterSelectScreen() {
   ctx.fillText("CHOOSE YOUR PLAYER", cw / 2, 24);
 
   const numOptions = CHARACTER_OPTIONS.length;
-  const panelW = 180;
-  const panelH = 220;
-  const avatarH = 180;
-  const gap = 60;
+  const maxTotalW = cw - 40;
+  const gap = numOptions > 4 ? 16 : 60;
+  const panelW = Math.min(180, Math.floor((maxTotalW - (numOptions - 1) * gap) / numOptions));
+  const panelH = numOptions > 4 ? 160 : 220;
+  const avatarH = numOptions > 4 ? 120 : 180;
   const totalW = numOptions * panelW + (numOptions - 1) * gap;
   const startX = (cw - totalW) / 2 + panelW / 2;
   const centerY = ch / 2 - 20;
@@ -4891,6 +5793,7 @@ function gameLoop() {
       heroAnim.frameCounter = 0;
       heroAnim.walkFrameIndex = 0;
     }
+    if (lineupSequence === "sohail_caption") updateSohailCreditsMovement();
     updatePlayerMovement();
     updateEnemies();
     updateProjectiles();
@@ -4909,6 +5812,8 @@ function gameLoop() {
     updateAbls();
     updateApril();
     updateRonaldsmom();
+    updateJanice();
+    updateLineupSequence();
   }
 
   ctx.save();
@@ -4916,41 +5821,85 @@ function gameLoop() {
   drawRoomBackground();
   drawObstacles();
   drawBlockShatter();
-  if (player.currentRoom === 2) drawRoom2SecretElements();
-  if (player.currentRoom === 9) drawRoom9CavernDoor();
-  if (cavernSequence === "descending" || cavernSequence === "ascending" || (player.currentRoom === 9 && room9DoorState === "open")) drawCavernSteps();
-  if (player.currentRoom === ROOM9_ABLS_ROOM) {
-    drawAbls();
-    drawAblsCaption();
+  if (lineupSequence !== "none") {
+    if (lineupSequence === "walk_to_center" || lineupSequence === "caption") {
+      drawPlayer();
+      drawPlayerShield();
+      if (lineupSequence === "caption") drawBossVictoryCaption();
+    } else if (bossVictorySequenceStarted && lineupRoster.length === 12) {
+      drawBossVictoryCaption();
+      const cx = ROOM_MARGIN_X + ROOM_WIDTH / 2;
+      const sohailBottomY = ROOM_MARGIN_Y + ROOM_HEIGHT - SOHAIL_BOTTOM_TARGET_Y_OFFSET;
+      for (let i = 0; i < 12; i++) {
+        const entry = lineupRoster[i];
+        let moving = lineupSequence === "entering" && Math.hypot(entry.targetX - entry.x, entry.targetY - entry.y) > LINEUP_ARRIVED_R;
+        if (lineupSequence === "sohail_walk_down" && entry.key === "sohail") {
+          moving = Math.hypot(cx - entry.x, sohailBottomY - entry.y) > LINEUP_ARRIVED_R;
+        }
+        if (lineupSequence === "sohail_caption" && entry.key === "sohail") {
+          moving = !!(keys["arrowup"] || keys["arrowdown"] || keys["arrowleft"] || keys["arrowright"] || keys["w"] || keys["a"] || keys["s"] || keys["d"]);
+        }
+        if (lineupSequence === "vlad_caption" && entry.key === "vlad") {
+          moving = true;
+        }
+        drawLineupCharacter(entry, moving);
+      }
+      if (lineupSequence === "sohail_caption") drawSohailCreditsCaption();
+      if (lineupSequence === "vlad_caption") drawVladEndCaption();
+    } else {
+      drawAbls();
+      drawShopkeeper();
+      drawSalesman();
+      drawApril();
+      drawRonaldsmom();
+      drawJanice();
+      drawPlayer();
+      drawPlayerShield();
+    }
+  } else {
+    if (player.currentRoom === 2) drawRoom2SecretElements();
+    if (player.currentRoom === 9) drawRoom9CavernDoor();
+    if (cavernSequence === "descending" || cavernSequence === "ascending" || (player.currentRoom === 9 && room9DoorState === "open")) drawCavernSteps();
+    if (player.currentRoom === ROOM9_ABLS_ROOM) {
+      drawAbls();
+      drawAblsCaption();
+    }
+    if (player.currentRoom === ROOM5_JANICE && room5AllEnemiesDead()) {
+      drawRoom5AcceptCaption();
+      drawRoom5JaniceTable();
+      drawJanice();
+      drawJaniceCaption();
+    }
+    if (player.currentRoom === HIDDEN_ROOM) {
+      drawShopkeeper();
+      drawShopkeeperCaption();
+      drawSecretRoomShop();
+    }
+    if (player.currentRoom === SALESMAN_ROOM) {
+      drawRoom8Table();
+      drawSalesman();
+      drawSalesmanCaption();
+    }
+    if (player.currentRoom === SECRET_ROOM_2) {
+      drawRoom11Table();
+      drawApril();
+      drawAprilCaption();
+      drawRonaldsmom();
+      drawRonaldsmomCaption();
+    }
+    drawEnemies();
+    drawHeartPickups();
+    drawCoinPickups();
+    drawDeathScatter();
+    drawEnemyProjectiles();
+    drawProjectiles();
+    drawExplosions();
+    drawPlayer();
+    drawPlayerShield();
   }
-  if (player.currentRoom === HIDDEN_ROOM) {
-    drawShopkeeper();
-    drawShopkeeperCaption();
-    drawSecretRoomShop();
-  }
-  if (player.currentRoom === SALESMAN_ROOM) {
-    drawRoom8Table();
-    drawSalesman();
-    drawSalesmanCaption();
-  }
-  if (player.currentRoom === SECRET_ROOM_2) {
-    drawRoom11Table();
-    drawApril();
-    drawAprilCaption();
-    drawRonaldsmom();
-    drawRonaldsmomCaption();
-  }
-  drawEnemies();
-  drawHeartPickups();
-  drawCoinPickups();
-  drawDeathScatter();
-  drawEnemyProjectiles();
-  drawProjectiles();
-  drawExplosions();
-  drawPlayer();
-  drawPlayerShield();
   drawSealedDoorCaption();
   drawUIHints();
+  if (isEndSequenceFlashing()) drawEndSequenceBorderFlash();
   ctx.restore();
 
   if (cavernBlackAlpha > 0) {
