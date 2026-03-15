@@ -4,7 +4,9 @@
   <meta charset="UTF-8" />
   <title>4-Room Top-Down Game</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <!-- Bump ?v= when you deploy or want to force reload (cache-busting) -->
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+  <meta http-equiv="Pragma" content="no-cache" />
+  <meta http-equiv="Expires" content="0" />
   <link rel="stylesheet" href="style.css?v=2" />
 </head>
 <body>
@@ -80,7 +82,14 @@
   <audio id="purchase-deny" preload="auto">
     <source src="freesound_community-traditional-stamp-44189.mp3" type="audio/mpeg">
   </audio>
-  <script src="game.js?v=2"></script>
+  <script>
+    (function () {
+      var s = document.createElement("script");
+      s.src = "game.js?t=" + Date.now();
+      s.async = false;
+      document.body.appendChild(s);
+    })();
+  </script>
 </body>
 </html>
 
