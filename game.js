@@ -5,6 +5,8 @@ const ctx = canvas.getContext("2d");
 
 // HUD elements
 const playerHeartsEl = document.getElementById("player-hearts");
+const bossHeartsWrapEl = document.getElementById("boss-hearts-wrap");
+const bossHeartsEl = document.getElementById("boss-hearts");
 const stripSlotsEl = document.getElementById("strip-slots");
 const enemiesValueEl = document.getElementById("enemies-value");
 const playerCoinsEl = document.getElementById("player-coins");
@@ -14,6 +16,7 @@ const restartButton = document.getElementById("restart-button");
 const gameMusicEl = document.getElementById("game-music");
 const swordSwingEl = document.getElementById("sword-swing");
 const swordStabEl = document.getElementById("sword-stab");
+const enemyHitEl = document.getElementById("enemy-hit");
 const fireballWhooshEl = document.getElementById("fireball-whoosh");
 const coinCollectEl = document.getElementById("coin-collect");
 const itemEquipEl = document.getElementById("item-equip");
@@ -76,7 +79,7 @@ const ENEMY_FIREBALL_DAMAGE = 1;
 
 const BOSS_ROOM = 7;  // room furthest from spawn; only enterable when all other enemies dead; exactly 1 enemy (the boss)
 const BOSS_SIZE = ENEMY_ELITE_SIZE * 2;   // twice as big as elite
-const BOSS_HP = 50;
+const BOSS_HP = 100;
 const BOSS_DAMAGE = 2;  // 2 hearts on contact
 const BOSS_SPEED = ENEMY_SPEED * 0.75;    // half as fast as previous (was 1.5x)
 const BOSS_FIREBALL_COOLDOWN = 100;        // frames between shots
@@ -84,11 +87,11 @@ const BOSS_FIREBALL_COOLDOWN = 100;        // frames between shots
 const FIREBALL_SPEED = 5;
 const FIREBALL_SIZE = 10;
 // Damage values & sword geometry
-const FIREBALL_DAMAGE = 5; // each fireball hit
+const FIREBALL_DAMAGE = 2.5; // each fireball hit (hero weapons deal half damage)
 const BOSS_FIREBALL_DAMAGE = 1;  // 1 heart when boss fireball hits player
 const BOSS_FIREBALL_SPEED = FIREBALL_SPEED * 0.5; // boss fireball moves half as fast as hero fireball
 const BOSS_FIREBALL_SIZE = FIREBALL_SIZE * 2;     // large boss fireball
-const SWORD_DAMAGE = 15;   // each sword hit (50% stronger than base)
+const SWORD_DAMAGE = 7.5;  // each sword hit (hero weapons deal half damage)
 const SWORD_RANGE = PLAYER_SIZE * 3; // sword length (50% longer: 3× player size)
 const SWORD_ARC = Math.PI / 2;   // 180° total swing (±90° from facing)
 const SWORD_SWING_DURATION = 15; // frames for full swing animation (20% slower than before)
@@ -211,6 +214,9 @@ let currentHeroSheet = "hero";
 // Character select: Alana, Rayan, Ellinor, Ronald, Yusuf, Janice, Sohail (same 4×4 sprite layout)
 let characterSelectActive = true;
 let selectedCharacterIndex = 0;
+let difficultySelectActive = false;
+let selectedDifficultyIndex = 0; // 0 = EASY, 1 = HARD
+let playerDifficulty = "hard"; // "easy" | "hard" — EASY = double hero weapon damage
 const CHARACTER_OPTIONS = [
   { id: "alana", name: "ALANA" },
   { id: "rayan", name: "RAYAN" },
@@ -476,7 +482,7 @@ let wasInRestockedWarRangeLastFrame = false;
 // Vlad's war one-liners: cycle on hover and each Endless War purchase
 const VLAD_WAR_LINES = [
   "Who needs social security?",
-  "There goes Medicare....but don't worry. I'll go to Norway",
+  "There goes Medicare",
   "We haven't been to war in Asia for awhile. Isn't it time?",
   "It's all for defense of course",
 ];
@@ -1741,6 +1747,20 @@ function updateHUD() {
     playerHeartsEl.innerHTML = n ? "<span class=\"heart\" aria-hidden=\"true\">♥</span>".repeat(n) : "";
     playerHeartsEl.setAttribute("aria-label", `Health: ${n} hearts`);
   }
+  const boss = enemies.find((e) => e.isBoss);
+  if (bossHeartsWrapEl && bossHeartsEl) {
+    if (!boss || boss.hp <= 0) {
+      bossHeartsWrapEl.style.display = "none";
+    } else {
+      const totalHearts = Math.ceil(BOSS_HP / 10);
+      const filled = Math.min(totalHearts, Math.ceil(boss.hp / 10));
+      const fullHearts = "<span class=\"heart\" aria-hidden=\"true\">♥</span>".repeat(filled);
+      const emptyHearts = "<span class=\"heart empty\" aria-hidden=\"true\">♥</span>".repeat(totalHearts - filled);
+      bossHeartsEl.innerHTML = fullHearts + emptyHearts;
+      bossHeartsWrapEl.setAttribute("aria-label", `Boss health: ${boss.hp}/${BOSS_HP}`);
+      bossHeartsWrapEl.style.display = "flex";
+    }
+  }
   const aliveEnemies = enemies.filter((e) => e.hp > 0).length;
   enemiesValueEl.textContent = aliveEnemies.toString();
   if (player.coins < 0) {
@@ -1873,6 +1893,35 @@ document.addEventListener("keydown", (e) => {
     if ((e.key === " " || e.code === "Space") && !e.repeat) {
       currentHeroSheet = CHARACTER_OPTIONS[selectedCharacterIndex].id;
       characterSelectActive = false;
+      difficultySelectActive = true;
+      selectedDifficultyIndex = 0;
+      e.preventDefault();
+      return;
+    }
+  }
+
+  if (difficultySelectActive) {
+    if (e.key === "ArrowLeft" || e.key === "Left") {
+      selectedDifficultyIndex = 0;
+      if (characterSelectClickEl) {
+        characterSelectClickEl.currentTime = 0;
+        characterSelectClickEl.play().catch(() => {});
+      }
+      e.preventDefault();
+      return;
+    }
+    if (e.key === "ArrowRight" || e.key === "Right") {
+      selectedDifficultyIndex = 1;
+      if (characterSelectClickEl) {
+        characterSelectClickEl.currentTime = 0;
+        characterSelectClickEl.play().catch(() => {});
+      }
+      e.preventDefault();
+      return;
+    }
+    if ((e.key === " " || e.code === "Space") && !e.repeat) {
+      playerDifficulty = selectedDifficultyIndex === 0 ? "easy" : "hard";
+      difficultySelectActive = false;
       showStartScreen();
       e.preventDefault();
       return;
@@ -1881,6 +1930,10 @@ document.addEventListener("keydown", (e) => {
 
   if (e.key === " " || e.code === "Space") {
     if (e.repeat) {
+      e.preventDefault();
+      return;
+    }
+    if (difficultySelectActive) {
       e.preventDefault();
       return;
     }
@@ -2036,17 +2089,35 @@ canvas.addEventListener("mousemove", (e) => {
 
 canvas.addEventListener("click", (e) => {
   unlockAudio();
-  if (!characterSelectActive) return;
-  const rect = canvas.getBoundingClientRect();
-  const scaleX = canvas.width / rect.width;
-  const scaleY = canvas.height / rect.height;
-  const x = (e.clientX - rect.left) * scaleX;
-  const y = (e.clientY - rect.top) * scaleY;
-  const panel = characterSelectPanelAt(x, y);
-  if (panel >= 0) {
-    currentHeroSheet = CHARACTER_OPTIONS[panel].id;
-    characterSelectActive = false;
-    showStartScreen();
+  if (characterSelectActive) {
+    const rect = canvas.getBoundingClientRect();
+    const scaleX = canvas.width / rect.width;
+    const scaleY = canvas.height / rect.height;
+    const x = (e.clientX - rect.left) * scaleX;
+    const y = (e.clientY - rect.top) * scaleY;
+    const panel = characterSelectPanelAt(x, y);
+    if (panel >= 0) {
+      currentHeroSheet = CHARACTER_OPTIONS[panel].id;
+      characterSelectActive = false;
+      difficultySelectActive = true;
+      selectedDifficultyIndex = 0;
+    }
+    return;
+  }
+  if (difficultySelectActive) {
+    const rect = canvas.getBoundingClientRect();
+    const scaleX = canvas.width / rect.width;
+    const scaleY = canvas.height / rect.height;
+    const x = (e.clientX - rect.left) * scaleX;
+    const y = (e.clientY - rect.top) * scaleY;
+    const panel = difficultySelectPanelAt(x, y);
+    if (panel >= 0) {
+      selectedDifficultyIndex = panel;
+      playerDifficulty = panel === 0 ? "easy" : "hard";
+      difficultySelectActive = false;
+      showStartScreen();
+    }
+    return;
   }
 });
 
@@ -2057,6 +2128,13 @@ restartButton.addEventListener("click", () => {
   if (characterSelectActive) {
     currentHeroSheet = CHARACTER_OPTIONS[selectedCharacterIndex].id;
     characterSelectActive = false;
+    difficultySelectActive = true;
+    selectedDifficultyIndex = 0;
+    return;
+  }
+  if (difficultySelectActive) {
+    playerDifficulty = selectedDifficultyIndex === 0 ? "easy" : "hard";
+    difficultySelectActive = false;
     showStartScreen();
     return;
   }
@@ -2099,12 +2177,9 @@ function attemptAttack() {
   const invForAttack = player.inventory || [];
   const axeSelected = selectedStripIndex >= 2 && invForAttack[selectedStripIndex - 2] === "axe";
   if (axeSelected || player.weapon === WEAPON_SWORD) {
-    if (axeSelected && swordSwingEl) {
+    if (swordSwingEl) {
       swordSwingEl.currentTime = 0;
       swordSwingEl.play().catch(() => {});
-    } else if (!axeSelected && swordStabEl) {
-      swordStabEl.currentTime = 0;
-      swordStabEl.play().catch(() => {});
     }
     performSwordAttack();
     player.attackCooldown = 16;
@@ -2114,10 +2189,10 @@ function attemptAttack() {
       fireballWhooshEl.currentTime = 0;
       fireballWhooshEl.play().catch(() => {});
     }
-    // Fire three projectiles in a small fan centered on facingAngle
+    // Fire two projectiles in a small fan centered on facingAngle
     const baseAngle = player.facingAngle;
     const spread = Math.PI / 18; // ~10° between shots
-    const angles = [baseAngle - spread, baseAngle, baseAngle + spread];
+    const angles = [baseAngle - spread, baseAngle + spread];
 
     angles.forEach((angle) => {
       const vx = Math.cos(angle) * FIREBALL_SPEED;
@@ -2150,8 +2225,10 @@ function performSwordAttack() {
     while (diff < -Math.PI) diff += Math.PI * 2;
 
     if (Math.abs(diff) <= SWORD_ARC) {
-      enemy.hp -= SWORD_DAMAGE;
+      const swordDmg = playerDifficulty === "easy" ? SWORD_DAMAGE * 2 : SWORD_DAMAGE;
+      enemy.hp -= swordDmg;
       enemy.hitFlashTimer = 6;
+      if (swordDmg > 0 && enemyHitEl) { enemyHitEl.currentTime = 0; enemyHitEl.play().catch(() => {}); }
       if (enemy.hp <= 0) {
         spawnDeathScatter(enemy.x, enemy.y, enemy.roomId);
         if (!enemy.isBoss && enemy.dropsHearts) {
@@ -3226,8 +3303,10 @@ function updateProjectiles() {
       if (!p.alive) return;
       if (enemy.roomId !== p.roomId || enemy.hp <= 0) return;
       if (rectIntersect(p, enemy)) {
-        enemy.hp -= FIREBALL_DAMAGE;
+        const fireballDmg = playerDifficulty === "easy" ? FIREBALL_DAMAGE * 2 : FIREBALL_DAMAGE;
+        enemy.hp -= fireballDmg;
         enemy.hitFlashTimer = 6;
+        if (fireballDmg > 0 && enemyHitEl) { enemyHitEl.currentTime = 0; enemyHitEl.play().catch(() => {}); }
         p.alive = false;
         spawnExplosion(p.x, p.y);
         if (enemy.hp <= 0) {
@@ -5706,6 +5785,75 @@ function characterSelectPanelAt(x, y) {
   return -1;
 }
 
+const DIFFICULTY_OPTIONS = ["EASY", "HARD"];
+
+function difficultySelectPanelAt(x, y) {
+  const cw = canvas.width;
+  const ch = canvas.height;
+  const numOptions = 2;
+  const panelW = 200;
+  const gap = 40;
+  const totalW = numOptions * panelW + gap;
+  const startX = (cw - totalW) / 2 + panelW / 2;
+  const centerY = ch / 2 - 20;
+  const panelH = 120;
+  for (let i = 0; i < numOptions; i++) {
+    const cx = startX + i * (panelW + gap);
+    const boxLeft = cx - panelW / 2;
+    const boxTop = centerY - panelH / 2;
+    if (x >= boxLeft && x < boxLeft + panelW && y >= boxTop && y < boxTop + panelH) return i;
+  }
+  return -1;
+}
+
+function drawDifficultySelectScreen() {
+  const cw = canvas.width;
+  const ch = canvas.height;
+  const hue = (Date.now() / 40) % 360;
+  ctx.fillStyle = `hsl(${hue}, 55%, 92%)`;
+  ctx.fillRect(0, 0, cw, ch);
+
+  ctx.fillStyle = "#2c2c38";
+  ctx.font = "bold 36px sans-serif";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "top";
+  ctx.fillText("CHOOSE DIFFICULTY", cw / 2, 24);
+
+  ctx.fillStyle = "#5a5a6a";
+  ctx.font = "14px sans-serif";
+  ctx.textAlign = "center";
+  ctx.fillText("Left / Right arrows to choose — Space to continue", cw / 2, 24 + 36 + 14);
+
+  const numOptions = 2;
+  const panelW = 200;
+  const gap = 40;
+  const totalW = numOptions * panelW + gap;
+  const startX = (cw - totalW) / 2 + panelW / 2;
+  const centerY = ch / 2 - 20;
+  const panelH = 120;
+
+  for (let i = 0; i < numOptions; i++) {
+    const cx = startX + i * (panelW + gap);
+    const isSelected = i === selectedDifficultyIndex;
+    const boxLeft = cx - panelW / 2;
+    const boxTop = centerY - panelH / 2;
+
+    ctx.strokeStyle = isSelected ? "#c49b2a" : "#6a6a7a";
+    ctx.lineWidth = isSelected ? 5 : 2;
+    ctx.strokeRect(boxLeft, boxTop, panelW, panelH);
+    if (isSelected) {
+      ctx.fillStyle = "rgba(196, 155, 42, 0.15)";
+      ctx.fillRect(boxLeft, boxTop, panelW, panelH);
+    }
+
+    ctx.fillStyle = isSelected ? "#8b6914" : "#4a4a5a";
+    ctx.font = "bold 28px sans-serif";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText(DIFFICULTY_OPTIONS[i], cx, centerY);
+  }
+}
+
 function drawCharacterSelectScreen() {
   const cw = canvas.width;
   const ch = canvas.height;
@@ -5718,6 +5866,11 @@ function drawCharacterSelectScreen() {
   ctx.textAlign = "center";
   ctx.textBaseline = "top";
   ctx.fillText("CHOOSE YOUR PLAYER", cw / 2, 24);
+
+  ctx.fillStyle = "#5a5a6a";
+  ctx.font = "14px sans-serif";
+  ctx.textAlign = "center";
+  ctx.fillText("Left / Right arrows to choose — Space to start", cw / 2, 24 + 36 + 14);
 
   const numOptions = CHARACTER_OPTIONS.length;
   const maxTotalW = cw - 40;
@@ -5775,11 +5928,6 @@ function drawCharacterSelectScreen() {
     ctx.textBaseline = "top";
     ctx.fillText(CHARACTER_OPTIONS[i].name, cx, boxTop + avatarH + 8);
   }
-
-  ctx.fillStyle = "#5a5a6a";
-  ctx.font = "14px sans-serif";
-  ctx.textAlign = "center";
-  ctx.fillText("Left / Right arrows to choose — Space to start", cw / 2, ch - 24);
 }
 
 function gameLoop() {
@@ -5787,6 +5935,13 @@ function gameLoop() {
 
   if (characterSelectActive) {
     drawCharacterSelectScreen();
+    updateHUD();
+    requestAnimationFrame(gameLoop);
+    return;
+  }
+
+  if (difficultySelectActive) {
+    drawDifficultySelectScreen();
     updateHUD();
     requestAnimationFrame(gameLoop);
     return;
