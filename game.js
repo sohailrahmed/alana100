@@ -729,6 +729,8 @@ const BOSS_VICTORY_CAPTION_HOLD_FRAMES = 90;
 let bossVictoryLinedUpAt = 0;
 const BOSS_VICTORY_END_DELAY = 180;
 
+let endCreditsActive = false; // true after Vlad walks off-screen at the very end
+
 const SOHAIL_CREDITS_CAPTIONS = [
   "Hi! My name is Sohail Ahmed and I created this game",
   "I hope you enjoyed this game and all of its hidden Easter eggs!",
@@ -1871,6 +1873,18 @@ document.addEventListener("keydown", (e) => {
   unlockAudio();
   keys[e.key.toLowerCase()] = true;
 
+  if (endCreditsActive) {
+    // Any key after credits returns to player selection
+    endCreditsActive = false;
+    isGameOver = false;
+    victory = false;
+    characterSelectActive = true;
+    hasStarted = false;
+    overlayEl.classList.add("hidden");
+    e.preventDefault();
+    return;
+  }
+
   if (characterSelectActive) {
     if (e.key === "ArrowLeft" || e.key === "Left") {
       selectedCharacterIndex = (selectedCharacterIndex - 1 + CHARACTER_OPTIONS.length) % CHARACTER_OPTIONS.length;
@@ -2353,7 +2367,7 @@ function updateLineupSequence() {
     if (!vlad) {
       isGameOver = true;
       victory = true;
-      showEndMessage();
+      endCreditsActive = true;
       return;
     }
     if (vladCaptionPhase === "to_corner") {
@@ -2391,7 +2405,8 @@ function updateLineupSequence() {
       if (vlad.x <= VLAD_OFF_ARRIVED_X) {
         isGameOver = true;
         victory = true;
-        showEndMessage();
+        endCreditsActive = true;
+        lineupSequence = "none";
       }
     }
     return;
@@ -2855,8 +2870,9 @@ function updateRoom2TrapDoorAndSequence() {
     player.y -= 2.2;
     if (room2SecretProgress >= ROOM2_DESCEND_FRAMES) {
       room2SecretSequence = "none";
-      player.x = ROOM_MARGIN_X + ROOM2_DOORWAY_LEFT + ROOM2_DOORWAY_W + 28;
-      player.y = ROOM_MARGIN_Y + ROOM2_DOORWAY_TOP - 24;
+      // Place hero just to the left of the stairs so they don't immediately re-trigger them
+      player.x = ROOM_MARGIN_X + ROOM2_DOORWAY_LEFT - 32;
+      player.y = ROOM_MARGIN_Y + ROOM2_DOORWAY_TOP + ROOM2_DOORWAY_H / 2;
     }
   }
 }
@@ -5868,6 +5884,38 @@ function drawDifficultySelectScreen() {
   }
 }
 
+function drawEndCreditsScreen() {
+  const cw = canvas.width;
+  const ch = canvas.height;
+  const hue = (Date.now() / 40) % 360;
+  ctx.fillStyle = `hsl(${hue}, 45%, 12%)`;
+  ctx.fillRect(0, 0, cw, ch);
+
+  ctx.fillStyle = "#f9fafb";
+  ctx.textAlign = "center";
+
+  ctx.font = "bold 32px sans-serif";
+  ctx.textBaseline = "top";
+  ctx.fillText("THANK YOU FOR PLAYING", cw / 2, 40);
+
+  ctx.font = "16px sans-serif";
+  const lines = [
+    "Game created entirely from scratch - my tribute to the original Zelda for NES.",
+    "I couldn't have done it without my agents, including Sonnet, and Google's Nano Banana.",
+    "Sprite sheets created from real photos of Ronalds Mom, Ronald, April, Alana, Rayan, Josabet, Yusuf,",
+    "ABLS, Ellinor and Vlad.",
+    "",
+    "Much credit to open source music from big reggie (Zelda style)",
+    "and sound effects from freesound community, floraphonic and others."
+  ];
+  const lineHeight = 22;
+  let y = ch / 2 - (lines.length * lineHeight) / 2;
+  for (const line of lines) {
+    ctx.fillText(line, cw / 2, y);
+    y += lineHeight;
+  }
+}
+
 function drawCharacterSelectScreen() {
   const cw = canvas.width;
   const ch = canvas.height;
@@ -5956,6 +6004,13 @@ function gameLoop() {
 
   if (difficultySelectActive) {
     drawDifficultySelectScreen();
+    updateHUD();
+    requestAnimationFrame(gameLoop);
+    return;
+  }
+
+  if (endCreditsActive) {
+    drawEndCreditsScreen();
     updateHUD();
     requestAnimationFrame(gameLoop);
     return;
