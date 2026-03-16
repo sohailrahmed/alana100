@@ -18,6 +18,7 @@ const fireballWhooshEl = document.getElementById("fireball-whoosh");
 const coinCollectEl = document.getElementById("coin-collect");
 const itemEquipEl = document.getElementById("item-equip");
 const heartPickupEl = document.getElementById("heart-pickup");
+const playerDamageEl = document.getElementById("player-damage");
 const bossChamberEl = document.getElementById("boss-chamber");
 const secretDoorOpenEl = document.getElementById("secret-door-open");
 const trapDoorOpenEl = document.getElementById("trapdoor-open");
@@ -472,10 +473,16 @@ let room8WarRestocked = false;
 let hasLeftRoom8AfterWar = false;
 let room8WarRestockHighlightIndex = 0;
 let wasInRestockedWarRangeLastFrame = false;
-const ROOM8_WAR_RESTOCK_CAPTIONS = [
-  "We have more War available in inventory. But thanks to inflation it now costs 80 Billion coin.",
+// Vlad's war one-liners: cycle on hover and each Endless War purchase
+const VLAD_WAR_LINES = [
   "Who needs social security?",
+  "There goes Medicare....but don't worry. I'll go to Norway",
+  "We haven't been to war in Asia for awhile. Isn't it time?",
+  "It's all for defense of course",
 ];
+const ROOM8_WAR_RESTOCK_CAPTIONS = VLAD_WAR_LINES;
+const VLAD_ENDLESS_WAR_SUBSEQUENT_CAPTIONS = VLAD_WAR_LINES;
+let room8EndlessWarPurchaseCount = 0;
 let room8PurchaseCaption = "";
 let room8PurchaseCaptionUntil = 0;
 let previousPlayerRoom = 9;
@@ -670,8 +677,8 @@ const JANICE_NPC_SPEED = 1.0;
 const JANICE_LEFT_MAX_X = ROOM_MARGIN_X + ROOM_WIDTH / 2 - 24;
 const JANICE_TOP_MIN_Y = ROOM_MARGIN_Y + ROOM_HEIGHT / 2 + 24;
 const JANICE_CAPTIONS = [
-  "Por favor, acepta este mole de pollo",
-  "Es delicioso",
+  "Soy Josabet, como esta usted?",
+  "Este es molle de pollo. Es delicioso",
   "Te dará 5 puntos de salud",
 ];
 const JANICE_CAPTION_DURATION = 240;  // 4 seconds at 60fps
@@ -1600,6 +1607,7 @@ function resetGame() {
   salesmanCaptionNextAt = 0;
   room8TableSold = { axe: false, endlessWar: false, worldPeace: false };
   room8FirstWarSold = false;
+  room8EndlessWarPurchaseCount = 0;
   room8WarRestocked = false;
   hasLeftRoom8AfterWar = false;
   room8PurchaseCaption = "";
@@ -2055,8 +2063,10 @@ restartButton.addEventListener("click", () => {
   hasStarted = true;
   resetGame();
   overlayEl.classList.add("hidden");
+  if (bossChamberEl) bossChamberEl.pause();
   if (gameMusicEl) {
     gameMusicEl.volume = 0.5;
+    gameMusicEl.currentTime = 0;
     gameMusicEl.play().catch(() => {});
   }
 });
@@ -3173,6 +3183,7 @@ function updateEnemies() {
         const damage = player.hasShield ? 0.5 : 1;
         player.hp = Math.max(0, player.hp - damage);
         player.contactDamageCooldown = 45;  // ~0.75 sec before next contact can damage
+        if (playerDamageEl) { playerDamageEl.currentTime = 0; playerDamageEl.play().catch(() => {}); }
       }
 
       let kdx = player.x - enemy.x;
@@ -3263,6 +3274,7 @@ function updateEnemyProjectiles() {
     if (rectIntersect(p, player) && player.currentRoom === p.roomId) {
       const damage = player.hasShield ? 0.5 : 1;
       player.hp = Math.max(0, player.hp - damage);
+      if (playerDamageEl) { playerDamageEl.currentTime = 0; playerDamageEl.play().catch(() => {}); }
       if (p.isBoss || p.isDemonFireball) spawnBigExplosion(p.x, p.y);
       p.alive = false;
       if (player.hp <= 0) {
@@ -4105,7 +4117,10 @@ function tryPurchaseRoom8Table() {
     if (item.id === "endlessWar") {
       if (room8FirstWarSold) {
         player.coins -= 80000000000;
-        room8PurchaseCaption = "Who needs social security?";
+        room8EndlessWarPurchaseCount++;
+        // For restock purchases, cycle through all Vlad war lines
+        const idx = (room8EndlessWarPurchaseCount - 1) % VLAD_ENDLESS_WAR_SUBSEQUENT_CAPTIONS.length;
+        room8PurchaseCaption = VLAD_ENDLESS_WAR_SUBSEQUENT_CAPTIONS[idx];
         room8PurchaseCaptionUntil = gameFrameCount + CAPTION_FRAMES;
         if (itemEquipEl) { itemEquipEl.currentTime = 0; itemEquipEl.play().catch(() => {}); }
         updateHUD();
@@ -4114,6 +4129,7 @@ function tryPurchaseRoom8Table() {
       const hadEnough = player.coins >= 50000000000;
       player.coins -= 50000000000;
       room8FirstWarSold = true;
+      room8EndlessWarPurchaseCount = 1;
       player.inventory.push("endlessWar");
       room8PurchaseCaption = hadEnough
         ? "You sure you don't want two? History suggests one is rarely enough."
@@ -4270,7 +4286,7 @@ function getRoom8HighlightCaption() {
   });
   if (closestId === "axe") return "Simple. Reliable.";
   if (closestId === "endlessWar") {
-    if (room8FirstWarSold) return ROOM8_WAR_RESTOCK_CAPTIONS[room8WarRestockHighlightIndex % 2];
+    if (room8FirstWarSold) return ROOM8_WAR_RESTOCK_CAPTIONS[room8WarRestockHighlightIndex % ROOM8_WAR_RESTOCK_CAPTIONS.length];
     if (!room8FirstWarSold) return ROOM8_ENDLESS_WAR_HIGHLIGHT_CAPTIONS[room8EndlessWarHighlightIndex % 2];
     return null;
   }
