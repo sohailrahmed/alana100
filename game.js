@@ -2071,18 +2071,32 @@ document.addEventListener("keyup", (e) => {
 });
 
 canvas.addEventListener("mousemove", (e) => {
-  if (!characterSelectActive) return;
   const rect = canvas.getBoundingClientRect();
   const scaleX = canvas.width / rect.width;
   const scaleY = canvas.height / rect.height;
   const x = (e.clientX - rect.left) * scaleX;
   const y = (e.clientY - rect.top) * scaleY;
-  const panel = characterSelectPanelAt(x, y);
-  if (panel >= 0 && panel !== selectedCharacterIndex) {
-    selectedCharacterIndex = panel;
-    if (characterSelectClickEl) {
-      characterSelectClickEl.currentTime = 0;
-      characterSelectClickEl.play().catch(() => {}); // amaze98-clicking-interface-select-201946 on hover
+
+  if (characterSelectActive) {
+    const panel = characterSelectPanelAt(x, y);
+    if (panel >= 0 && panel !== selectedCharacterIndex) {
+      selectedCharacterIndex = panel;
+      if (characterSelectClickEl) {
+        characterSelectClickEl.currentTime = 0;
+        characterSelectClickEl.play().catch(() => {}); // amaze98-clicking-interface-select-201946 on hover
+      }
+    }
+    return;
+  }
+
+  if (difficultySelectActive) {
+    const panel = difficultySelectPanelAt(x, y);
+    if (panel >= 0 && panel !== selectedDifficultyIndex) {
+      selectedDifficultyIndex = panel;
+      if (characterSelectClickEl) {
+        characterSelectClickEl.currentTime = 0;
+        characterSelectClickEl.play().catch(() => {});
+      }
     }
   }
 });
