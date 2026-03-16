@@ -20,7 +20,7 @@ A small browser game inspired by classic top-down adventures. You explore a mapp
 
 ## Rooms and doors
 
-- There are **4 rooms** arranged in a 2x2 grid.
+- There are **many room** arranged in a grid.
 - Each room has doors only where it has neighboring rooms:
   - Top/bottom for vertical neighbors
   - Left/right for horizontal neighbors
