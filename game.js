@@ -111,8 +111,9 @@ const HERO_DIR_UP = 1;     // away from player (row 1)
 const HERO_DIR_LEFT = 2;
 const HERO_DIR_RIGHT = 3;
 
+// Default hero sheet (Alex) — 4×4 layout: row 0=towards player (down), row 1=away (up), row 2=left, row 3=right
 const heroImage = new Image();
-heroImage.src = "hero.png";
+heroImage.src = "alex_sprite.jpg";
 let heroFrameWidth = 0;
 let heroFrameHeight = 0;
 let heroSpriteLoaded = false;
@@ -160,7 +161,7 @@ alanaHeroImage.onload = () => {
 
 // Ronald, Yusuf, Janice, Sohail — 4×4 layout: row 0 = towards player (down), row 1 = away (up), row 2 = left, row 3 = right
 const ronaldHeroImage = new Image();
-ronaldHeroImage.src = "ronald_sprite.png";
+ronaldHeroImage.src = "ronald_sprite.jpg";
 let ronaldHeroLoaded = false;
 let ronaldHeroFrameWidth = 0;
 let ronaldHeroFrameHeight = 0;
@@ -526,8 +527,9 @@ const APRIL_CAPTIONS = [
   "If you need help, blink twice",
 ];
 const APRIL_CAPTION_DURATION = 300;
+// April — 4×4 layout: row 0 = towards player (down), row 1 = away (up), row 2 = left, row 3 = right
 const aprilImage = new Image();
-aprilImage.src = "april_sprite.png";
+aprilImage.src = "april_sprite.jpg";
 let aprilLoaded = false;
 const APRIL_SPRITE_COLS = 4;
 const APRIL_SPRITE_ROWS = 4;
@@ -577,8 +579,9 @@ const RONALDSMOM_CAPTIONS = [
   "this dish is very healthy",
   "I grow squash in summer. The climate in Staten Island is just right",
 ];
+// Ronald's mom — 4×4 layout: row 0 = towards player (down), row 1 = away (up), row 2 = left, row 3 = right
 const ronaldsmomImage = new Image();
-ronaldsmomImage.src = "ronaldsmom_sprite.png";
+ronaldsmomImage.src = "ronaldsmom_sprite.jpg";
 let ronaldsmomLoaded = false;
 const RONALDSMOM_SPRITE_COLS = 4;
 const RONALDSMOM_SPRITE_ROWS = 4;
