@@ -1,6 +1,6 @@
-# 4-Room Top-Down Game
+# Multi-Room 2D Game
 
-A small browser game inspired by classic top-down adventures. You explore a 2x2 grid of rooms, defeat demon enemies with a fireball or sword, and win once all demons are slain.
+A small browser game inspired by classic top-down adventures. You explore a mapped grid of rooms, defeat demon enemies with a variety of weapons, and win once all demons are slain.
 
 ## Controls
 
