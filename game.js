@@ -237,8 +237,8 @@ let currentHeroSheet = "hero";
 let characterSelectActive = true;
 let selectedCharacterIndex = 0;
 let difficultySelectActive = false;
-let selectedDifficultyIndex = 0; // 0 = EASY, 1 = HARD
-let playerDifficulty = "hard"; // "easy" | "hard" — EASY = double hero weapon damage
+let selectedDifficultyIndex = 0; // 0 = EASY, 1 = NORMAL, 2 = NIGHTMARE
+let playerDifficulty = "normal"; // "easy" | "normal" | "nightmare"
 const CHARACTER_OPTIONS = [
   { id: "alana", name: "ALANA" },
   { id: "rayan", name: "RAYAN" },
@@ -248,6 +248,18 @@ const CHARACTER_OPTIONS = [
   { id: "yaqub", name: "YAQUB" },
   { id: "ibrahim", name: "IBRAHIM" },
 ];
+
+function getDifficultyFromIndex(index) {
+  return ["easy", "normal", "nightmare"][index] || "normal";
+}
+
+function getHeroFireballDamage() {
+  return playerDifficulty === "easy" ? FIREBALL_DAMAGE * 2 : FIREBALL_DAMAGE;
+}
+
+function getHeroSwordDamage() {
+  return playerDifficulty === "easy" ? SWORD_DAMAGE * 2 : SWORD_DAMAGE;
+}
 
 const shopkeeperImage = new Image();
 shopkeeperImage.src = "kosta_sprite.png";
@@ -1940,7 +1952,7 @@ document.addEventListener("keydown", (e) => {
 
   if (difficultySelectActive) {
     if (e.key === "ArrowLeft" || e.key === "Left") {
-      selectedDifficultyIndex = 0;
+      selectedDifficultyIndex = (selectedDifficultyIndex - 1 + DIFFICULTY_OPTIONS.length) % DIFFICULTY_OPTIONS.length;
       if (characterSelectClickEl) {
         characterSelectClickEl.currentTime = 0;
         characterSelectClickEl.play().catch(() => {});
@@ -1949,7 +1961,7 @@ document.addEventListener("keydown", (e) => {
       return;
     }
     if (e.key === "ArrowRight" || e.key === "Right") {
-      selectedDifficultyIndex = 1;
+      selectedDifficultyIndex = (selectedDifficultyIndex + 1) % DIFFICULTY_OPTIONS.length;
       if (characterSelectClickEl) {
         characterSelectClickEl.currentTime = 0;
         characterSelectClickEl.play().catch(() => {});
@@ -1958,7 +1970,7 @@ document.addEventListener("keydown", (e) => {
       return;
     }
     if ((e.key === " " || e.code === "Space") && !e.repeat) {
-      playerDifficulty = selectedDifficultyIndex === 0 ? "easy" : "hard";
+      playerDifficulty = getDifficultyFromIndex(selectedDifficultyIndex);
       difficultySelectActive = false;
       showStartScreen();
       e.preventDefault();
@@ -2165,7 +2177,7 @@ canvas.addEventListener("click", (e) => {
     const panel = difficultySelectPanelAt(x, y);
     if (panel >= 0) {
       selectedDifficultyIndex = panel;
-      playerDifficulty = panel === 0 ? "easy" : "hard";
+      playerDifficulty = getDifficultyFromIndex(panel);
       difficultySelectActive = false;
       showStartScreen();
     }
@@ -2185,7 +2197,7 @@ restartButton.addEventListener("click", () => {
     return;
   }
   if (difficultySelectActive) {
-    playerDifficulty = selectedDifficultyIndex === 0 ? "easy" : "hard";
+    playerDifficulty = getDifficultyFromIndex(selectedDifficultyIndex);
     difficultySelectActive = false;
     showStartScreen();
     return;
@@ -2277,7 +2289,7 @@ function performSwordAttack() {
     while (diff < -Math.PI) diff += Math.PI * 2;
 
     if (Math.abs(diff) <= SWORD_ARC) {
-      const swordDmg = playerDifficulty === "easy" ? SWORD_DAMAGE * 2 : SWORD_DAMAGE;
+      const swordDmg = getHeroSwordDamage();
       enemy.hp -= swordDmg;
       enemy.hitFlashTimer = 6;
       if (swordDmg > 0 && enemyHitEl) { enemyHitEl.currentTime = 0; enemyHitEl.play().catch(() => {}); }
@@ -3279,17 +3291,18 @@ function updateEnemies() {
       });
       enemy.fireballCooldown = BOSS_FIREBALL_COOLDOWN;
     }
-    // In the “fireball room”, demons periodically shoot a slow fireball at the player
+    // In Nightmare every non-boss enemy shoots; otherwise only the fireball room does.
     else if (
-      enemy.roomId === ROOM_DEMONS_SHOOT_FIREBALLS &&
       enemy.roomId === player.currentRoom &&
+      (playerDifficulty === "nightmare" || enemy.roomId === ROOM_DEMONS_SHOOT_FIREBALLS) &&
       enemy.fireballCooldown <= 0
     ) {
       const dx = player.x - enemy.x;
       const dy = player.y - enemy.y;
       const dist = Math.hypot(dx, dy) || 1;
-      const vx = (dx / dist) * ENEMY_FIREBALL_SPEED;
-      const vy = (dy / dist) * ENEMY_FIREBALL_SPEED;
+      const fireballSpeed = playerDifficulty === "nightmare" ? ENEMY_FIREBALL_SPEED * 2 : ENEMY_FIREBALL_SPEED;
+      const vx = (dx / dist) * fireballSpeed;
+      const vy = (dy / dist) * fireballSpeed;
       const startX = enemy.x + (dx / dist) * (enemy.half + ENEMY_FIREBALL_SIZE);
       const startY = enemy.y + (dy / dist) * (enemy.half + ENEMY_FIREBALL_SIZE);
       enemyProjectiles.push({
@@ -3357,7 +3370,7 @@ function updateProjectiles() {
       if (!p.alive) return;
       if (enemy.roomId !== p.roomId || enemy.hp <= 0) return;
       if (rectIntersect(p, enemy)) {
-        const fireballDmg = playerDifficulty === "easy" ? FIREBALL_DAMAGE * 2 : FIREBALL_DAMAGE;
+        const fireballDmg = getHeroFireballDamage();
         enemy.hp -= fireballDmg;
         enemy.hitFlashTimer = 6;
         if (fireballDmg > 0 && enemyHitEl) { enemyHitEl.currentTime = 0; enemyHitEl.play().catch(() => {}); }
@@ -5845,15 +5858,15 @@ function characterSelectPanelAt(x, y) {
   return -1;
 }
 
-const DIFFICULTY_OPTIONS = ["EASY", "HARD"];
+const DIFFICULTY_OPTIONS = ["EASY", "NORMAL", "NIGHTMARE"];
 
 function difficultySelectPanelAt(x, y) {
   const cw = canvas.width;
   const ch = canvas.height;
-  const numOptions = 2;
-  const panelW = 200;
+  const numOptions = DIFFICULTY_OPTIONS.length;
+  const panelW = 180;
   const gap = 40;
-  const totalW = numOptions * panelW + gap;
+  const totalW = numOptions * panelW + (numOptions - 1) * gap;
   const startX = (cw - totalW) / 2 + panelW / 2;
   const centerY = ch / 2 - 20;
   const panelH = 120;
@@ -5884,10 +5897,10 @@ function drawDifficultySelectScreen() {
   ctx.textAlign = "center";
   ctx.fillText("Left / Right arrows to choose — Space to continue", cw / 2, 24 + 36 + 14);
 
-  const numOptions = 2;
-  const panelW = 200;
+  const numOptions = DIFFICULTY_OPTIONS.length;
+  const panelW = 180;
   const gap = 40;
-  const totalW = numOptions * panelW + gap;
+  const totalW = numOptions * panelW + (numOptions - 1) * gap;
   const startX = (cw - totalW) / 2 + panelW / 2;
   const centerY = ch / 2 - 20;
   const panelH = 120;
@@ -5907,7 +5920,7 @@ function drawDifficultySelectScreen() {
     }
 
     ctx.fillStyle = isSelected ? "#8b6914" : "#4a4a5a";
-    ctx.font = "bold 28px sans-serif";
+    ctx.font = "bold 24px sans-serif";
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
     ctx.fillText(DIFFICULTY_OPTIONS[i], cx, centerY);
