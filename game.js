@@ -163,7 +163,7 @@ alanaHeroImage.onload = () => {
   alanaHeroLoaded = true;
 };
 
-// Ronald, Yusuf, Janice, Sohail — 4×4 layout: row 0 = towards player (down), row 1 = away (up), row 2 = left, row 3 = right
+// Ronald, Yusuf, Janice, Sohail, Yaqub, Ibrahim — 4×4 layout: row 0 = towards player (down), row 1 = away (up), row 2 = left, row 3 = right
 const ronaldHeroImage = new Image();
 ronaldHeroImage.src = "ronald_sprite.jpg";
 let ronaldHeroLoaded = false;
@@ -208,10 +208,32 @@ sohailHeroImage.onload = () => {
   sohailHeroLoaded = true;
 };
 
-// Which hero sheet to draw: 'hero' | 'rayan' | 'ellinor' | 'alana' | 'ronald' | 'yusuf' | 'janice' | 'sohail'
+const yaqubHeroImage = new Image();
+yaqubHeroImage.src = "yaqub_sprite.png";
+let yaqubHeroLoaded = false;
+let yaqubHeroFrameWidth = 0;
+let yaqubHeroFrameHeight = 0;
+yaqubHeroImage.onload = () => {
+  yaqubHeroFrameWidth = yaqubHeroImage.width / HERO_SPRITE_COLS;
+  yaqubHeroFrameHeight = yaqubHeroImage.height / HERO_SPRITE_ROWS;
+  yaqubHeroLoaded = true;
+};
+
+const ibrahimHeroImage = new Image();
+ibrahimHeroImage.src = "ibrahim_sprite.png";
+let ibrahimHeroLoaded = false;
+let ibrahimHeroFrameWidth = 0;
+let ibrahimHeroFrameHeight = 0;
+ibrahimHeroImage.onload = () => {
+  ibrahimHeroFrameWidth = ibrahimHeroImage.width / HERO_SPRITE_COLS;
+  ibrahimHeroFrameHeight = ibrahimHeroImage.height / HERO_SPRITE_ROWS;
+  ibrahimHeroLoaded = true;
+};
+
+// Which hero sheet to draw: 'hero' | 'rayan' | 'ellinor' | 'alana' | 'ronald' | 'yusuf' | 'janice' | 'sohail' | 'yaqub' | 'ibrahim'
 let currentHeroSheet = "hero";
 
-// Character select: Alana, Rayan, Ellinor, Ronald, Yusuf, Janice, Sohail (same 4×4 sprite layout)
+// Character select: Alana, Rayan, Ellinor, Yusuf, Ronald, Yaqub, Ibrahim (same 4×4 sprite layout)
 let characterSelectActive = true;
 let selectedCharacterIndex = 0;
 let difficultySelectActive = false;
@@ -223,6 +245,8 @@ const CHARACTER_OPTIONS = [
   { id: "ellinor", name: "ELLINOR" },
   { id: "yusuf", name: "YUSUF" },
   { id: "ronald", name: "RONALD" },
+  { id: "yaqub", name: "YAQUB" },
+  { id: "ibrahim", name: "IBRAHIM" },
 ];
 
 const shopkeeperImage = new Image();
@@ -5163,6 +5187,10 @@ function drawPlayer() {
     img = janiceHeroImage; fw = janiceHeroFrameWidth; fh = janiceHeroFrameHeight; loaded = true;
   } else if (currentHeroSheet === "sohail" && sohailHeroLoaded) {
     img = sohailHeroImage; fw = sohailHeroFrameWidth; fh = sohailHeroFrameHeight; loaded = true;
+  } else if (currentHeroSheet === "yaqub" && yaqubHeroLoaded) {
+    img = yaqubHeroImage; fw = yaqubHeroFrameWidth; fh = yaqubHeroFrameHeight; loaded = true;
+  } else if (currentHeroSheet === "ibrahim" && ibrahimHeroLoaded) {
+    img = ibrahimHeroImage; fw = ibrahimHeroFrameWidth; fh = ibrahimHeroFrameHeight; loaded = true;
   }
   if (loaded && fw > 0 && fh > 0) {
     // Determine sprite row based on direction (row 0=towards player, 1=away, 2=left, 3=right)
@@ -5791,6 +5819,8 @@ function getCharacterSelectSprite(index) {
     { img: ellinorHeroImage, loaded: ellinorHeroLoaded, fw: ellinorHeroFrameWidth, fh: ellinorHeroFrameHeight },
     { img: yusufHeroImage, loaded: yusufHeroLoaded, fw: yusufHeroFrameWidth, fh: yusufHeroFrameHeight },
     { img: ronaldHeroImage, loaded: ronaldHeroLoaded, fw: ronaldHeroFrameWidth, fh: ronaldHeroFrameHeight },
+    { img: yaqubHeroImage, loaded: yaqubHeroLoaded, fw: yaqubHeroFrameWidth, fh: yaqubHeroFrameHeight },
+    { img: ibrahimHeroImage, loaded: ibrahimHeroLoaded, fw: ibrahimHeroFrameWidth, fh: ibrahimHeroFrameHeight },
   ];
   return sheets[index] || sheets[0];
 }
